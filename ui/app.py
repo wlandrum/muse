@@ -1,0 +1,361 @@
+"""Muse — AI Manager for Independent Artists
+Streamlit UI with chat interface and calendar dashboard.
+"""
+
+import json
+import logging
+import os
+import sys
+from datetime import datetime, timedelta
+
+import streamlit as st
+from anthropic import Anthropic
+
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from muse.config import config, get_google_client_config
+from muse.orchestrator import Orchestrator
+from muse.utils.env import get_app_url, is_cloud
+from muse.utils.google_oauth import (
+    is_connected,
+    get_auth_url,
+    exchange_code,
+    disconnect,
+    GOOGLE_OAUTH_AVAILABLE,
+)
+
+# ── Logging ─────────────────────────────────────────────────────────
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+# ── Page Config ─────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="Muse — AI Manager",
+    page_icon="🎵",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# ── Custom CSS ──────────────────────────────────────────────────────
+st.markdown("""
+<style>
+    /* Dark theme overrides */
+    .stApp {
+        background-color: #0e1117;
+    }
+
+    /* Chat message styling */
+    .user-message {
+        background-color: #1a1f2e;
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin: 8px 0;
+        border-left: 3px solid #6c63ff;
+    }
+    .assistant-message {
+        background-color: #141820;
+        border-radius: 12px;
+        padding: 12px 16px;
+        margin: 8px 0;
+        border-left: 3px solid #22c55e;
+    }
+
+    /* Event card styling */
+    .event-card {
+        background-color: #1a1f2e;
+        border-radius: 8px;
+        padding: 12px;
+        margin: 6px 0;
+        border-left: 4px solid #6c63ff;
+    }
+
+    /* Sidebar styling */
+    .sidebar-header {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+</style>
+""", unsafe_allow_html=True)
+
+# ── OAuth Callback Handler ──────────────────────────────────────────
+# When Google redirects back with ?code=...&state=..., exchange the code
+# for a token and save it. This runs BEFORE the rest of the UI renders.
+
+_query_params = st.query_params
+_oauth_code = _query_params.get("code")
+_oauth_state = _query_params.get("state")
+
+if _oauth_code and _oauth_state:
+    _client_cfg = get_google_client_config()
+    _redirect_uri = get_app_url()
+    _cloud = is_cloud()
+
+    if _oauth_state == "calendar":
+        success = exchange_code(
+            code=_oauth_code,
+            scopes=config.GOOGLE_SCOPES,
+            client_config=_client_cfg,
+            redirect_uri=_redirect_uri,
+            token_path=config.GOOGLE_TOKEN_PATH if not _cloud else None,
+        )
+        if success:
+            st.toast("Google Calendar connected!", icon="✅")
+        else:
+            st.toast("Failed to connect Google Calendar. Check logs.", icon="❌")
+
+    elif _oauth_state == "gmail":
+        success = exchange_code(
+            code=_oauth_code,
+            scopes=config.GMAIL_SCOPES,
+            client_config=_client_cfg,
+            redirect_uri=_redirect_uri,
+            token_path=config.GOOGLE_GMAIL_TOKEN_PATH if not _cloud else None,
+        )
+        if success:
+            st.toast("Gmail connected!", icon="✅")
+        else:
+            st.toast("Failed to connect Gmail. Check logs.", icon="❌")
+
+    # Clear the OAuth query params and reload the page cleanly
+    st.query_params.clear()
+    st.rerun()
+
+# ── Session State Init ──────────────────────────────────────────────
+
+
+def init_session_state():
+    if "orchestrator" not in st.session_state:
+        st.session_state.orchestrator = Orchestrator()
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    if "agent_log" not in st.session_state:
+        st.session_state.agent_log = []
+
+
+init_session_state()
+
+# ── Google Connection Status ────────────────────────────────────────
+_client_config = get_google_client_config()
+_has_credentials = _client_config is not None
+_cal_connected = _has_credentials and is_connected(config.GOOGLE_TOKEN_PATH, config.GOOGLE_SCOPES)
+_gmail_connected = _has_credentials and is_connected(config.GOOGLE_GMAIL_TOKEN_PATH, config.GMAIL_SCOPES)
+
+# ── Sidebar ─────────────────────────────────────────────────────────
+
+with st.sidebar:
+    st.markdown("# 🎵 Muse")
+    st.markdown("**AI Manager for Independent Artists**")
+    st.divider()
+
+    # Agent status indicators (dynamic based on connection)
+    st.markdown("### Agents")
+    _cal_label = "Google" if _cal_connected else "Local"
+    _email_label = "Gmail" if _gmail_connected else "Local"
+    st.markdown(f"✅ **Calendar** — {_cal_label}")
+    st.markdown(f"✅ **Email** — {_email_label}")
+    st.markdown("✅ **Invoicing** — Active")
+    st.markdown("✅ **Social Media** — Active")
+    st.divider()
+
+    # ── Google Connection ────────────────────────────────────────
+    st.markdown("### Google Connection")
+
+    if not GOOGLE_OAUTH_AVAILABLE:
+        st.warning("Google API libraries not installed. Running in local-only mode.")
+    elif not _has_credentials:
+        st.warning(
+            "**Google credentials not configured.**\n\n"
+            "To connect Google Calendar & Gmail:\n"
+            "1. Go to [Google Cloud Console](https://console.cloud.google.com/)\n"
+            "2. Create OAuth 2.0 credentials (Web application type)\n"
+            f"3. Add `{get_app_url()}` as an authorized redirect URI\n"
+            "4. Add credentials to Streamlit secrets or download `credentials.json`"
+        )
+    else:
+        _app_url = get_app_url()
+
+        # Calendar connection
+        if _cal_connected:
+            col_cal_status, col_cal_btn = st.columns([3, 1])
+            with col_cal_status:
+                st.markdown("✅ **Calendar** connected")
+            with col_cal_btn:
+                if st.button("✕", key="disconnect_cal", help="Disconnect Calendar"):
+                    disconnect(config.GOOGLE_TOKEN_PATH, config.GOOGLE_SCOPES)
+                    st.rerun()
+        else:
+            try:
+                _cal_auth_url = get_auth_url(
+                    scopes=config.GOOGLE_SCOPES,
+                    client_config=_client_config,
+                    redirect_uri=_app_url,
+                    state="calendar",
+                )
+                st.link_button(
+                    "🔗 Connect Calendar",
+                    _cal_auth_url,
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.error(f"Calendar auth error: {e}")
+
+        # Gmail connection
+        if _gmail_connected:
+            col_gmail_status, col_gmail_btn = st.columns([3, 1])
+            with col_gmail_status:
+                st.markdown("✅ **Gmail** connected")
+            with col_gmail_btn:
+                if st.button("✕", key="disconnect_gmail", help="Disconnect Gmail"):
+                    disconnect(config.GOOGLE_GMAIL_TOKEN_PATH, config.GMAIL_SCOPES)
+                    st.rerun()
+        else:
+            try:
+                _gmail_auth_url = get_auth_url(
+                    scopes=config.GMAIL_SCOPES,
+                    client_config=_client_config,
+                    redirect_uri=_app_url,
+                    state="gmail",
+                )
+                st.link_button(
+                    "🔗 Connect Gmail",
+                    _gmail_auth_url,
+                    use_container_width=True,
+                )
+            except Exception as e:
+                st.error(f"Gmail auth error: {e}")
+
+    st.divider()
+
+    # Quick actions
+    st.markdown("### Quick Actions")
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("📅 This Week", use_container_width=True):
+            st.session_state.quick_action = "What's on my schedule this week?"
+    with col2:
+        if st.button("🔍 Next Open", use_container_width=True):
+            st.session_state.quick_action = "When am I free this week?"
+
+    col3, col4 = st.columns(2)
+    with col3:
+        if st.button("🎸 Add Gig", use_container_width=True):
+            st.session_state.quick_action = "I need to add a gig to my calendar"
+    with col4:
+        if st.button("🎙️ Add Session", use_container_width=True):
+            st.session_state.quick_action = "I need to add a recording session"
+
+    col5, col6 = st.columns(2)
+    with col5:
+        if st.button("📧 Check Inbox", use_container_width=True):
+            st.session_state.quick_action = "Check my email inbox"
+    with col6:
+        if st.button("📨 Unread", use_container_width=True):
+            st.session_state.quick_action = "Show me my unread emails"
+
+    col7, col8 = st.columns(2)
+    with col7:
+        if st.button("💰 Invoices", use_container_width=True):
+            st.session_state.quick_action = "Show me my invoices"
+    with col8:
+        if st.button("📊 Income", use_container_width=True):
+            st.session_state.quick_action = "How much have I made this year?"
+
+    col9, col10 = st.columns(2)
+    with col9:
+        if st.button("📱 Draft Post", use_container_width=True):
+            st.session_state.quick_action = "Help me draft an Instagram post"
+    with col10:
+        if st.button("📝 My Posts", use_container_width=True):
+            st.session_state.quick_action = "Show my post drafts"
+
+    st.divider()
+
+    # Settings
+    with st.expander("⚙️ Settings"):
+        artist_name = st.text_input("Artist Name", value=config.ARTIST_NAME)
+        timezone = st.text_input("Timezone", value=config.DEFAULT_TIMEZONE)
+        if st.button("Save Settings"):
+            config.ARTIST_NAME = artist_name
+            config.DEFAULT_TIMEZONE = timezone
+            st.success("Settings saved!")
+
+    # Reset conversation
+    if st.button("🗑️ Clear Chat", use_container_width=True):
+        st.session_state.messages = []
+        st.session_state.agent_log = []
+        st.session_state.orchestrator.reset()
+        st.rerun()
+
+# ── Main Chat Interface ─────────────────────────────────────────────
+
+# Header
+st.markdown("## 💬 Chat with Muse")
+st.markdown(
+    "*Tell me about gigs, sessions, email, invoicing, or social media — I'll handle it.*"
+)
+
+# Display chat history
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"], avatar="🎵" if msg["role"] == "assistant" else "🎤"):
+        st.markdown(msg["content"])
+        if msg.get("agent"):
+            st.caption(f"Handled by: {msg['agent']} agent")
+
+# Handle quick actions
+if "quick_action" in st.session_state:
+    prompt = st.session_state.pop("quick_action")
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user", avatar="🎤"):
+        st.markdown(prompt)
+
+    with st.chat_message("assistant", avatar="🎵"):
+        with st.spinner("Working on it..."):
+            agent_name, response = st.session_state.orchestrator.route(prompt)
+        st.markdown(response)
+        st.caption(f"Handled by: {agent_name} agent")
+
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": response,
+        "agent": agent_name,
+    })
+    st.rerun()
+
+# Chat input
+if prompt := st.chat_input("e.g. 'Book a session at West End Sound next Thursday, noon to 5pm, $500'"):
+    # Add user message
+    st.session_state.messages.append({"role": "user", "content": prompt})
+    with st.chat_message("user", avatar="🎤"):
+        st.markdown(prompt)
+
+    # Get agent response
+    with st.chat_message("assistant", avatar="🎵"):
+        with st.spinner("Working on it..."):
+            agent_name, response = st.session_state.orchestrator.route(prompt)
+        st.markdown(response)
+        st.caption(f"Handled by: {agent_name} agent")
+
+    # Store response
+    st.session_state.messages.append({
+        "role": "assistant",
+        "content": response,
+        "agent": agent_name,
+    })
+
+# ── Footer ──────────────────────────────────────────────────────────
+st.divider()
+
+st.caption(
+    "Muse v0.1 — Built with Claude (Anthropic) · "
+    "Calendar + Email + Invoice + Social Agents available · "
+    f"Calendar: {'Google' if _cal_connected else 'Local'} · "
+    f"Email: {'Gmail' if _gmail_connected else 'Local'} · "
+    "Invoices: Local · "
+    "Social: Local + ChromaDB"
+)

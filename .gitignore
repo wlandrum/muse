@@ -1,0 +1,38 @@
+# ── Python ────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+*.egg
+
+# ── Environment & Secrets ────────────────────────────────────────
+.env
+.env.*
+credentials.json
+token.json
+token_gmail.json
+.streamlit/secrets.toml
+
+# ── Databases (ephemeral / local dev) ────────────────────────────
+*.db
+chroma_db/
+
+# ── Generated files ──────────────────────────────────────────────
+invoices/
+
+# ── IDE / OS ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Personal files (not part of the project) ─────────────────────
+*.pdf
+
+# ── Misc artifacts ───────────────────────────────────────────────
+=0.4.0
