@@ -25,16 +25,11 @@ class Config:
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     MODEL: str = "claude-sonnet-4-20250514"
 
-    # Google OAuth
+    # Google OAuth — single token with both Calendar + Gmail scopes
     GOOGLE_CREDENTIALS_PATH: str = _resolve(os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json"))
     GOOGLE_TOKEN_PATH: str = _resolve(os.getenv("GOOGLE_TOKEN_PATH", "token.json"))
     GOOGLE_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/calendar",
-    ]
-
-    # Gmail OAuth (separate token to avoid scope conflict with Calendar)
-    GOOGLE_GMAIL_TOKEN_PATH: str = _resolve(os.getenv("GOOGLE_GMAIL_TOKEN_PATH", "token_gmail.json"))
-    GMAIL_SCOPES: list[str] = [
         "https://www.googleapis.com/auth/gmail.modify",
     ]
 

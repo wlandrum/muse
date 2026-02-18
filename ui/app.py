@@ -96,31 +96,17 @@ if _oauth_code and _oauth_state:
     _redirect_uri = get_app_url()
     _cloud = is_cloud()
 
-    if _oauth_state == "calendar":
-        success = exchange_code(
-            code=_oauth_code,
-            scopes=config.GOOGLE_SCOPES,
-            client_config=_client_cfg,
-            redirect_uri=_redirect_uri,
-            token_path=config.GOOGLE_TOKEN_PATH if not _cloud else None,
-        )
-        if success:
-            st.session_state["_oauth_toast"] = ("Google Calendar connected!", "✅")
-        else:
-            st.session_state["_oauth_toast"] = ("Failed to connect Google Calendar. Check logs.", "❌")
-
-    elif _oauth_state == "gmail":
-        success = exchange_code(
-            code=_oauth_code,
-            scopes=config.GMAIL_SCOPES,
-            client_config=_client_cfg,
-            redirect_uri=_redirect_uri,
-            token_path=config.GOOGLE_GMAIL_TOKEN_PATH if not _cloud else None,
-        )
-        if success:
-            st.session_state["_oauth_toast"] = ("Gmail connected!", "✅")
-        else:
-            st.session_state["_oauth_toast"] = ("Failed to connect Gmail. Check logs.", "❌")
+    success = exchange_code(
+        code=_oauth_code,
+        scopes=config.GOOGLE_SCOPES,
+        client_config=_client_cfg,
+        redirect_uri=_redirect_uri,
+        token_path=config.GOOGLE_TOKEN_PATH if not _cloud else None,
+    )
+    if success:
+        st.session_state["_oauth_toast"] = ("Google connected! Calendar & Gmail ready.", "✅")
+    else:
+        st.session_state["_oauth_toast"] = ("Failed to connect Google. Check logs.", "❌")
 
     # Clear the OAuth query params and reload the page cleanly
     st.query_params.clear()
@@ -148,8 +134,7 @@ init_session_state()
 # ── Google Connection Status ────────────────────────────────────────
 _client_config = get_google_client_config()
 _has_credentials = _client_config is not None
-_cal_connected = _has_credentials and is_connected(config.GOOGLE_TOKEN_PATH, config.GOOGLE_SCOPES)
-_gmail_connected = _has_credentials and is_connected(config.GOOGLE_GMAIL_TOKEN_PATH, config.GMAIL_SCOPES)
+_google_connected = _has_credentials and is_connected(config.GOOGLE_TOKEN_PATH, config.GOOGLE_SCOPES)
 
 # ── Sidebar ─────────────────────────────────────────────────────────
 
@@ -160,10 +145,9 @@ with st.sidebar:
 
     # Agent status indicators (dynamic based on connection)
     st.markdown("### Agents")
-    _cal_label = "Google" if _cal_connected else "Local"
-    _email_label = "Gmail" if _gmail_connected else "Local"
-    st.markdown(f"✅ **Calendar** — {_cal_label}")
-    st.markdown(f"✅ **Email** — {_email_label}")
+    _g_label = "Google" if _google_connected else "Local"
+    st.markdown(f"✅ **Calendar** — {_g_label}")
+    st.markdown(f"✅ **Email** — {_g_label}")
     st.markdown("✅ **Invoicing** — Active")
     st.markdown("✅ **Social Media** — Active")
     st.divider()
@@ -182,58 +166,31 @@ with st.sidebar:
             f"3. Add `{get_app_url()}` as an authorized redirect URI\n"
             "4. Add credentials to Streamlit secrets or download `credentials.json`"
         )
+    elif _google_connected:
+        col_status, col_btn = st.columns([3, 1])
+        with col_status:
+            st.markdown("✅ **Google** connected")
+            st.caption("Calendar & Gmail active")
+        with col_btn:
+            if st.button("✕", key="disconnect_google", help="Disconnect Google"):
+                disconnect(config.GOOGLE_TOKEN_PATH, config.GOOGLE_SCOPES)
+                st.rerun()
     else:
-        _app_url = get_app_url()
-
-        # Calendar connection
-        if _cal_connected:
-            col_cal_status, col_cal_btn = st.columns([3, 1])
-            with col_cal_status:
-                st.markdown("✅ **Calendar** connected")
-            with col_cal_btn:
-                if st.button("✕", key="disconnect_cal", help="Disconnect Calendar"):
-                    disconnect(config.GOOGLE_TOKEN_PATH, config.GOOGLE_SCOPES)
-                    st.rerun()
-        else:
-            try:
-                _cal_auth_url = get_auth_url(
-                    scopes=config.GOOGLE_SCOPES,
-                    client_config=_client_config,
-                    redirect_uri=_app_url,
-                    state="calendar",
-                )
-                st.link_button(
-                    "🔗 Connect Calendar",
-                    _cal_auth_url,
-                    use_container_width=True,
-                )
-            except Exception as e:
-                st.error(f"Calendar auth error: {e}")
-
-        # Gmail connection
-        if _gmail_connected:
-            col_gmail_status, col_gmail_btn = st.columns([3, 1])
-            with col_gmail_status:
-                st.markdown("✅ **Gmail** connected")
-            with col_gmail_btn:
-                if st.button("✕", key="disconnect_gmail", help="Disconnect Gmail"):
-                    disconnect(config.GOOGLE_GMAIL_TOKEN_PATH, config.GMAIL_SCOPES)
-                    st.rerun()
-        else:
-            try:
-                _gmail_auth_url = get_auth_url(
-                    scopes=config.GMAIL_SCOPES,
-                    client_config=_client_config,
-                    redirect_uri=_app_url,
-                    state="gmail",
-                )
-                st.link_button(
-                    "🔗 Connect Gmail",
-                    _gmail_auth_url,
-                    use_container_width=True,
-                )
-            except Exception as e:
-                st.error(f"Gmail auth error: {e}")
+        try:
+            _auth_url = get_auth_url(
+                scopes=config.GOOGLE_SCOPES,
+                client_config=_client_config,
+                redirect_uri=get_app_url(),
+                state="google",
+            )
+            st.link_button(
+                "🔗 Connect Google",
+                _auth_url,
+                use_container_width=True,
+            )
+            st.caption("Grants Calendar & Gmail access")
+        except Exception as e:
+            st.error(f"Auth error: {e}")
 
     st.divider()
 
@@ -359,8 +316,7 @@ st.divider()
 st.caption(
     "Muse v0.1 — Built with Claude (Anthropic) · "
     "Calendar + Email + Invoice + Social Agents available · "
-    f"Calendar: {'Google' if _cal_connected else 'Local'} · "
-    f"Email: {'Gmail' if _gmail_connected else 'Local'} · "
-    "Invoices: Local · "
-    "Social: Local + ChromaDB"
+    f"Google: {'Connected' if _google_connected else 'Local mode'} · "
+    "Invoices: Active · "
+    "Social: Active"
 )

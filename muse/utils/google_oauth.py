@@ -53,11 +53,8 @@ DEFAULT_REDIRECT_URI = get_app_url()
 
 
 def _token_key(scopes: list[str]) -> str:
-    """Determine session-state key based on scopes."""
-    scope_str = " ".join(scopes)
-    if "gmail" in scope_str:
-        return "oauth_token_gmail"
-    return "oauth_token_calendar"
+    """Session-state key for the Google OAuth token."""
+    return "oauth_token_google"
 
 
 def _create_flow(

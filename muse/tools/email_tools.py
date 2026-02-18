@@ -56,14 +56,13 @@ class EmailTools:
     def _authenticate(self) -> None:
         """Authenticate with Gmail API using a saved OAuth token.
 
-        Uses a SEPARATE token file (token_gmail.json) to avoid
-        scope conflicts with the calendar token.
-        Tokens are managed by the Streamlit UI via muse.utils.google_oauth.
+        Uses the same combined token (Calendar + Gmail scopes) managed
+        by the Streamlit UI via muse.utils.google_oauth.
         If no valid token exists, raises RuntimeError to trigger local fallback.
         """
         from muse.utils.google_oauth import load_credentials
 
-        creds = load_credentials(config.GOOGLE_GMAIL_TOKEN_PATH, config.GMAIL_SCOPES)
+        creds = load_credentials(config.GOOGLE_TOKEN_PATH, config.GOOGLE_SCOPES)
         if not creds:
             raise RuntimeError("Gmail not connected — using local mode")
 
