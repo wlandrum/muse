@@ -199,6 +199,9 @@ def get_auth_url(
         access_type="offline",
         prompt="consent",
         state=state,
+        # Do NOT merge scopes from previous grants — each service
+        # (Calendar, Gmail) gets its own independent token.
+        include_granted_scopes="false",
     )
     return auth_url
 
@@ -260,9 +263,17 @@ def exchange_code(
             logger.error(f"Token exchange error: {token_data}")
             return False
 
+        refresh_token = token_data.get("refresh_token")
+        if not refresh_token:
+            logger.warning(
+                "No refresh_token in response — token will expire and cannot be renewed. "
+                "User may need to revoke access at https://myaccount.google.com/permissions "
+                "and re-connect."
+            )
+
         creds = Credentials(
             token=token_data["access_token"],
-            refresh_token=token_data.get("refresh_token"),
+            refresh_token=refresh_token,
             token_uri=client_info.get("token_uri", "https://oauth2.googleapis.com/token"),
             client_id=client_info["client_id"],
             client_secret=client_info["client_secret"],
@@ -270,7 +281,7 @@ def exchange_code(
         )
 
         _save_token(creds, token_path, scopes)
-        logger.info(f"OAuth token saved (scopes={scopes}, token_path={token_path})")
+        logger.info(f"OAuth token saved (scopes={scopes}, has_refresh={bool(refresh_token)})")
         return True
 
     except Exception as e:
