@@ -105,9 +105,9 @@ if _oauth_code and _oauth_state:
             token_path=config.GOOGLE_TOKEN_PATH if not _cloud else None,
         )
         if success:
-            st.toast("Google Calendar connected!", icon="✅")
+            st.session_state["_oauth_toast"] = ("Google Calendar connected!", "✅")
         else:
-            st.toast("Failed to connect Google Calendar. Check logs.", icon="❌")
+            st.session_state["_oauth_toast"] = ("Failed to connect Google Calendar. Check logs.", "❌")
 
     elif _oauth_state == "gmail":
         success = exchange_code(
@@ -118,13 +118,18 @@ if _oauth_code and _oauth_state:
             token_path=config.GOOGLE_GMAIL_TOKEN_PATH if not _cloud else None,
         )
         if success:
-            st.toast("Gmail connected!", icon="✅")
+            st.session_state["_oauth_toast"] = ("Gmail connected!", "✅")
         else:
-            st.toast("Failed to connect Gmail. Check logs.", icon="❌")
+            st.session_state["_oauth_toast"] = ("Failed to connect Gmail. Check logs.", "❌")
 
     # Clear the OAuth query params and reload the page cleanly
     st.query_params.clear()
     st.rerun()
+
+# Show toast from previous OAuth redirect (survives rerun via session_state)
+if "_oauth_toast" in st.session_state:
+    _msg, _icon = st.session_state.pop("_oauth_toast")
+    st.toast(_msg, icon=_icon)
 
 # ── Session State Init ──────────────────────────────────────────────
 

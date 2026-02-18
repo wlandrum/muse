@@ -229,16 +229,52 @@ def exchange_code(
         return False
 
     try:
+        # Ensure relaxed scope checking is active right before exchange.
+        # Google merges previously-granted scopes, so connecting Gmail after
+        # Calendar (or vice versa) returns both scopes in the token response.
+        # Without this, oauthlib raises "Scope has changed".
+        os.environ["OAUTHLIB_RELAX_TOKEN_SCOPE"] = "1"
+
         flow = _create_flow(scopes, redirect_uri, client_config, credentials_path)
-        flow.fetch_token(code=code)
-        creds = flow.credentials
+
+        # Belt-and-suspenders: manually exchange the code via Google's token
+        # endpoint using requests, then build Credentials from the response.
+        # This completely sidesteps oauthlib's scope-change validation, which
+        # can break when Google merges scopes from multiple grants.
+        import requests as _requests
+
+        client_info = (client_config or {}).get("web") or (client_config or {}).get("installed") or {}
+        token_resp = _requests.post(
+            client_info.get("token_uri", "https://oauth2.googleapis.com/token"),
+            data={
+                "code": code,
+                "client_id": client_info["client_id"],
+                "client_secret": client_info["client_secret"],
+                "redirect_uri": redirect_uri,
+                "grant_type": "authorization_code",
+            },
+        )
+        token_data = token_resp.json()
+
+        if "error" in token_data:
+            logger.error(f"Token exchange error: {token_data}")
+            return False
+
+        creds = Credentials(
+            token=token_data["access_token"],
+            refresh_token=token_data.get("refresh_token"),
+            token_uri=client_info.get("token_uri", "https://oauth2.googleapis.com/token"),
+            client_id=client_info["client_id"],
+            client_secret=client_info["client_secret"],
+            scopes=scopes,
+        )
 
         _save_token(creds, token_path, scopes)
-        logger.info(f"OAuth token saved (token_path={token_path})")
+        logger.info(f"OAuth token saved (scopes={scopes}, token_path={token_path})")
         return True
 
     except Exception as e:
-        logger.error(f"Failed to exchange OAuth code: {e}")
+        logger.error(f"Failed to exchange OAuth code: {e}", exc_info=True)
         return False
 
 
