@@ -73,7 +73,10 @@ def get_google_client_config() -> Optional[dict]:
         import streamlit as st
 
         if hasattr(st, "secrets") and "google_oauth" in st.secrets:
+            from muse.utils.env import get_app_url
+
             secrets = dict(st.secrets["google_oauth"])
+            app_url = get_app_url()
             return {
                 "web": {
                     "client_id": secrets["client_id"],
@@ -89,6 +92,7 @@ def get_google_client_config() -> Optional[dict]:
                         "auth_provider_x509_cert_url",
                         "https://www.googleapis.com/oauth2/v1/certs",
                     ),
+                    "redirect_uris": [app_url],
                 }
             }
     except Exception:
