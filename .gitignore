@@ -12,6 +12,7 @@ venv/
 .env
 .env.*
 credentials.json
+client_secret_*.json
 token.json
 token_gmail.json
 .streamlit/secrets.toml

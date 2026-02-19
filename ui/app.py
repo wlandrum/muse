@@ -150,6 +150,7 @@ with st.sidebar:
     st.markdown(f"✅ **Email** — {_g_label}")
     st.markdown("✅ **Invoicing** — Active")
     st.markdown("✅ **Social Media** — Active")
+    st.markdown("✅ **CRM** — Active")
     st.divider()
 
     # ── Google Connection ────────────────────────────────────────
@@ -236,6 +237,14 @@ with st.sidebar:
         if st.button("📝 My Posts", use_container_width=True):
             st.session_state.quick_action = "Show my post drafts"
 
+    col11, col12 = st.columns(2)
+    with col11:
+        if st.button("👥 Contacts", use_container_width=True):
+            st.session_state.quick_action = "Show me my contacts"
+    with col12:
+        if st.button("📋 Follow-ups", use_container_width=True):
+            st.session_state.quick_action = "Who do I need to follow up with?"
+
     st.divider()
 
     # Settings
@@ -259,7 +268,7 @@ with st.sidebar:
 # Header
 st.markdown("## 💬 Chat with Muse")
 st.markdown(
-    "*Tell me about gigs, sessions, email, invoicing, or social media — I'll handle it.*"
+    "*Tell me about gigs, sessions, email, invoicing, contacts, or social media — I'll handle it.*"
 )
 
 # Display chat history
@@ -315,8 +324,7 @@ st.divider()
 
 st.caption(
     "Muse v0.1 — Built with Claude (Anthropic) · "
-    "Calendar + Email + Invoice + Social Agents available · "
+    "Calendar + Email + Invoice + Social + CRM Agents available · "
     f"Google: {'Connected' if _google_connected else 'Local mode'} · "
-    "Invoices: Active · "
-    "Social: Active"
+    "Invoices: Active · Social: Active · CRM: Active"
 )

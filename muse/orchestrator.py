@@ -18,6 +18,7 @@ Classify the user's message into exactly ONE category:
 - SOCIAL: social media posts, captions, content creation, Instagram, TikTok, hashtags, promo
 - INVOICE: billing, payments, invoices, money owed, rates, income
 - EMAIL: email management, inbox, responding to messages, forwarding
+- CRM: contacts, clients, venues, studios, promoters, relationships, meeting notes, follow-ups, "who do I work with", "tell me about [person/venue]", contact info, networking
 - GENERAL: greetings, general questions, anything that doesn't fit the above
 
 Respond with ONLY the category name, nothing else."""
@@ -38,6 +39,7 @@ class Orchestrator:
         self._email_agent = None
         self._invoice_agent = None
         self._social_agent = None
+        self._crm_agent = None
 
     # ── Lazy Agent Properties ────────────────────────────────────────
 
@@ -73,6 +75,14 @@ class Orchestrator:
             logger.info("[Orchestrator] Social agent initialized")
         return self._social_agent
 
+    @property
+    def crm_agent(self):
+        if self._crm_agent is None:
+            from muse.agents.crm_agent import CRMAgent
+            self._crm_agent = CRMAgent(client=self.client)
+            logger.info("[Orchestrator] CRM agent initialized")
+        return self._crm_agent
+
     # ── Agent Map (resolves lazily) ──────────────────────────────────
 
     def _get_agent(self, category: str):
@@ -82,6 +92,7 @@ class Orchestrator:
             "EMAIL": lambda: self.email_agent,
             "INVOICE": lambda: self.invoice_agent,
             "SOCIAL": lambda: self.social_agent,
+            "CRM": lambda: self.crm_agent,
         }
         getter = agent_map.get(category)
         return getter() if getter else None
@@ -107,7 +118,8 @@ class Orchestrator:
             "📅 **Calendar** — schedule gigs, sessions, rehearsals, check availability\n"
             "📧 **Email** — inbox triage, draft replies, extract gig details\n"
             "💰 **Invoicing** — create invoices, generate PDFs, track payments\n"
-            "📱 **Social Media** — draft Instagram posts, voice-matched captions, hashtags\n\n"
+            "📱 **Social Media** — draft Instagram posts, voice-matched captions, hashtags\n"
+            "👥 **CRM** — manage contacts, log meeting notes, track relationships\n\n"
             "What can I help you with?"
         )
 
@@ -122,7 +134,7 @@ class Orchestrator:
         category = response.content[0].text.strip().upper()
 
         # Validate
-        valid = {"CALENDAR", "SOCIAL", "INVOICE", "EMAIL", "GENERAL"}
+        valid = {"CALENDAR", "SOCIAL", "INVOICE", "EMAIL", "CRM", "GENERAL"}
         if category not in valid:
             logger.warning(f"[Orchestrator] Unexpected category '{category}', defaulting to GENERAL")
             return "GENERAL"
@@ -131,6 +143,7 @@ class Orchestrator:
     def reset(self) -> None:
         """Reset all agent conversation histories."""
         for agent_attr in [self._calendar_agent, self._email_agent,
-                           self._invoice_agent, self._social_agent]:
+                           self._invoice_agent, self._social_agent,
+                           self._crm_agent]:
             if agent_attr is not None:
                 agent_attr.reset()
