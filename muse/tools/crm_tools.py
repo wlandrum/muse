@@ -436,13 +436,15 @@ class CRMTools:
         params.append(datetime.now().isoformat())
         params.append(contact_id)
 
-        conn.execute(
+        cursor = conn.execute(
             f"UPDATE contacts SET {', '.join(set_clauses)} WHERE id = ?", params
         )
         conn.commit()
         conn.close()
 
-        return {"status": "updated", "contact_id": contact_id, "updates": updates}
+        if cursor.rowcount == 0:
+            return {"error": f"Contact not found: {contact_id}"}
+        return {"status": "updated", "contact_id": contact_id, "updates": filtered}
 
     def add_interaction(
         self,

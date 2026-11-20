@@ -407,12 +407,14 @@ class InvoiceTools:
             params.append(value)
         params.append(invoice_id)
 
-        conn.execute(
+        cursor = conn.execute(
             f"UPDATE invoices SET {', '.join(set_clauses)} WHERE id = ?", params
         )
         conn.commit()
         conn.close()
 
+        if cursor.rowcount == 0:
+            return {"error": f"Invoice not found: {invoice_id}"}
         return {"status": "updated", "invoice_id": invoice_id, "updates": filtered}
 
     def mark_paid(
@@ -425,7 +427,7 @@ class InvoiceTools:
         pay_date = payment_date or datetime.now().strftime("%Y-%m-%d")
 
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        conn.execute(
+        cursor = conn.execute(
             """UPDATE invoices
             SET status = 'paid', payment_date = ?, payment_notes = ?
             WHERE id = ?""",
@@ -433,6 +435,9 @@ class InvoiceTools:
         )
         conn.commit()
         conn.close()
+
+        if cursor.rowcount == 0:
+            return {"error": f"Invoice not found: {invoice_id}"}
 
         return {
             "status": "marked_paid",
@@ -523,14 +528,16 @@ class InvoiceTools:
         today = datetime.now().strftime("%Y-%m-%d")
 
         for row in rows:
+            if row["status"] == "cancelled":
+                invoice_count -= 1
+                continue
+
             amount = row["total"]
             total_invoiced += amount
 
             if row["status"] == "paid":
                 total_paid += amount
                 paid_count += 1
-            elif row["status"] == "cancelled":
-                pass  # Skip cancelled
             else:
                 total_outstanding += amount
                 outstanding_count += 1
