@@ -1,0 +1,110 @@
+# CRM agent cases. Local mode seeds sample contacts; use unique org names.
+
+- id: crm-add-studio
+  description: New contacts get the right role and details.
+  input: "Add Patchwerk Recording to my contacts. It's a studio, Jen is the studio manager, jen@patchwerk.com, they charge $75/hr."
+  route: CRM
+  trajectory:
+    - tools:
+        - name: search_contacts
+          input: {query: Patchwerk}
+    - tools:
+        - name: add_contact
+          input:
+            organization_name: Patchwerk Recording
+            contact_person: Jen
+            email: jen@patchwerk.com
+            role: studio
+            typical_rate: "$75/hr"
+    - text: "Added Patchwerk Recording (studio), contact Jen."
+  expect:
+    tools_called: [add_contact]
+    tool_args:
+      add_contact:
+        organization_name: {contains: Patchwerk}
+        role: studio
+        email: jen@patchwerk.com
+    state:
+      - sql: "SELECT count(*) FROM contacts WHERE organization_name LIKE 'Patchwerk%' AND role = 'studio'"
+        equals: 1
+
+- id: crm-log-meeting
+  description: Meeting notes are attached to the existing contact, with a follow-up date.
+  input: "Log that I met with Jen at Patchwerk on November 20, 2026 about tracking a 3-song EP. Follow up November 27."
+  route: CRM
+  setup:
+    - agent: CRM
+      tool: add_contact
+      input: {organization_name: Patchwerk Recording, contact_person: Jen, role: studio}
+      save_as: studio
+  trajectory:
+    - tools:
+        - name: search_contacts
+          input: {query: Patchwerk}
+    - tools:
+        - name: add_interaction
+          input:
+            contact_id: "${studio.contact_id}"
+            interaction_type: meeting
+            content: "Met with Jen about tracking a 3-song EP."
+            interaction_date: "2026-11-20"
+            follow_up_date: "2026-11-27"
+    - text: "Logged the meeting with Jen at Patchwerk. Follow-up set for Nov 27."
+  expect:
+    tools_called: [add_interaction]
+    tools_not_called: [add_contact]
+    tool_args:
+      add_interaction:
+        contact_id: {startswith: contact_}
+        content: {contains: EP}
+        follow_up_date: {startswith: "2026-11-27"}
+    state:
+      - sql: "SELECT count(*) FROM interactions i JOIN contacts c ON c.id = i.contact_id WHERE c.organization_name LIKE 'Patchwerk%'"
+        equals: 1
+
+- id: crm-lookup-summary
+  description: "'Tell me about X' searches and summarizes without modifying anything."
+  input: "Tell me about Patchwerk Recording."
+  route: CRM
+  setup:
+    - agent: CRM
+      tool: add_contact
+      input: {organization_name: Patchwerk Recording, contact_person: Jen, role: studio, typical_rate: "$75/hr"}
+      save_as: studio
+  trajectory:
+    - tools:
+        - name: search_contacts
+          input: {query: Patchwerk}
+    - tools:
+        - name: get_contact_summary
+          input: {contact_id: "${studio.contact_id}"}
+    - text: "Patchwerk Recording is a studio; Jen is your contact; typical rate $75/hr."
+  expect:
+    tools_called: [search_contacts]
+    tools_not_called: [add_contact, update_contact, add_interaction]
+    response_contains: [Patchwerk]
+
+- id: crm-summary-isolates-contact
+  description: A contact without an email must not be credited with other clients' invoices or gigs.
+  input: "How much business have I done with Patchwerk Recording?"
+  route: CRM
+  setup:
+    - agent: INVOICE
+      tool: create_invoice
+      input: {client_name: Some Other Venue, line_items: [{description: Gig, amount: 900}]}
+    - agent: CALENDAR
+      tool: create_event
+      input: {title: Gig elsewhere, event_type: gig, venue: Some Other Venue, start_time: "2026-12-01T20:00:00", end_time: "2026-12-01T23:00:00", pay: 900}
+    - agent: CRM
+      tool: add_contact
+      input: {organization_name: Patchwerk Recording, role: studio}
+      save_as: studio
+  trajectory:
+    - tools:
+        - name: get_contact_summary
+          input: {contact_id: "${studio.contact_id}"}
+    - text: "No invoices or gigs with Patchwerk Recording yet."
+  expect:
+    tools_called: [get_contact_summary]
+    tool_results:
+      get_contact_summary: {invoice_count: 0, total_invoiced: 0, event_count: 0}
