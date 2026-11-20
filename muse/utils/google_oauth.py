@@ -160,8 +160,11 @@ def _save_token(
     except Exception:
         pass
 
-    # Also save to file if we have a path and we're in local mode
-    if token_path and not is_cloud():
+    # Also save to file if we have a path and we're in local mode (or a
+    # single-artist deployment, where the server disk is the artist's own)
+    from muse.config import config
+
+    if token_path and (not is_cloud() or config.SINGLE_USER):
         try:
             with open(token_path, "w") as f:
                 f.write(token_json)

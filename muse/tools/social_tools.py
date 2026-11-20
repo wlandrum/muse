@@ -65,7 +65,8 @@ class SocialTools:
         self.db_path = config.DB_PATH
         self.voice_engine = VoiceEngine()
         self._init_db()
-        self._seed_sample_data()
+        if config.SEED_DEMO_DATA:
+            self._seed_sample_data()
 
     def _init_db(self) -> None:
         """Create the social_posts table if it doesn't exist."""

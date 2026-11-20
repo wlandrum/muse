@@ -105,7 +105,8 @@ class EmailTools:
         """)
         conn.commit()
         conn.close()
-        self._seed_sample_emails()
+        if config.SEED_DEMO_DATA:
+            self._seed_sample_emails()
         logger.info(f"Local email store initialized at {self.db_path}")
 
     def _seed_sample_emails(self) -> None:

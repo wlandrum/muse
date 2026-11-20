@@ -73,7 +73,8 @@ class CRMTools:
         """)
         conn.commit()
         conn.close()
-        self._seed_sample_data()
+        if config.SEED_DEMO_DATA:
+            self._seed_sample_data()
         logger.info(f"CRM database initialized at {self.db_path}")
 
     def _seed_sample_data(self) -> None:

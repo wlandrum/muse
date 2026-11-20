@@ -2,6 +2,7 @@
 Streamlit UI with chat interface and calendar dashboard.
 """
 
+import hmac
 import json
 import logging
 import os
@@ -83,6 +84,20 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ── Password Gate ───────────────────────────────────────────────────
+# Runs before anything else, including the OAuth callback, so nobody can
+# connect their own Google account to a single-artist deployment.
+if config.APP_PASSWORD and not st.session_state.get("_authed"):
+    st.title("🎵 Muse")
+    with st.form("login"):
+        _password = st.text_input("Password", type="password")
+        if st.form_submit_button("Sign in"):
+            if hmac.compare_digest(_password.encode(), config.APP_PASSWORD.encode()):
+                st.session_state["_authed"] = True
+                st.rerun()
+            st.error("That password isn't right.")
+    st.stop()
+
 # ── OAuth Callback Handler ──────────────────────────────────────────
 # When Google redirects back with ?code=...&state=..., exchange the code
 # for a token and save it. This runs BEFORE the rest of the UI renders.
@@ -101,7 +116,7 @@ if _oauth_code and _oauth_state:
         scopes=config.GOOGLE_SCOPES,
         client_config=_client_cfg,
         redirect_uri=_redirect_uri,
-        token_path=config.GOOGLE_TOKEN_PATH if not _cloud else None,
+        token_path=config.GOOGLE_TOKEN_PATH if (not _cloud or config.SINGLE_USER) else None,
     )
     if success:
         st.session_state["_oauth_toast"] = ("Google connected! Calendar & Gmail ready.", "✅")

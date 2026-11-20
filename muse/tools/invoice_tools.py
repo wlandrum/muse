@@ -88,7 +88,8 @@ class InvoiceTools:
         """)
         conn.commit()
         conn.close()
-        self._seed_sample_invoices()
+        if config.SEED_DEMO_DATA:
+            self._seed_sample_invoices()
         logger.info(f"Invoice database initialized at {self.db_path}")
 
     def _seed_sample_invoices(self) -> None:
