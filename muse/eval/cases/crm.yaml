@@ -86,7 +86,7 @@
 
 - id: crm-summary-isolates-contact
   description: A contact without an email must not be credited with other clients' invoices or gigs.
-  input: "How much business have I done with Patchwerk Recording?"
+  input: "Give me a relationship summary for Patchwerk Recording."
   route: CRM
   setup:
     - agent: INVOICE

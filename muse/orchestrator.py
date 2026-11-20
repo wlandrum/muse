@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import Optional
 
 from anthropic import Anthropic
 
@@ -14,14 +14,28 @@ logger = logging.getLogger(__name__)
 ROUTER_PROMPT = """You are a router for Muse, an AI manager for independent musicians.
 Classify the user's message into exactly ONE category:
 
-- CALENDAR: scheduling, gigs, sessions, rehearsals, lessons, availability, conflicts, "what's on my schedule", "am I free", booking
-- SOCIAL: social media posts, captions, content creation, Instagram, TikTok, hashtags, promo
+- CALENDAR: the artist's own schedule: adding, moving or cancelling gigs, sessions, rehearsals, lessons; availability, conflicts, "what's on my schedule", "am I free"
+- SOCIAL: social media posts, captions, content creation, Instagram, TikTok, hashtags, promo; the artist's voice samples (example captions saved so drafts match their writing style)
 - INVOICE: billing, payments, invoices, money owed, rates, income
-- EMAIL: email management, inbox, responding to messages, forwarding
+- EMAIL: the inbox and anything someone sent by email: reading, searching, summarizing or archiving messages, booking inquiries and offers received, pulling gig details out of an email, drafting replies
 - CRM: contacts, clients, venues, studios, promoters, relationships, meeting notes, follow-ups, "who do I work with", "tell me about [person/venue]", contact info, networking
 - GENERAL: greetings, general questions, anything that doesn't fit the above
 
-Respond with ONLY the category name, nothing else."""
+You may be told which category handled the previous message. Short follow-ups
+("yes", "send it", "make it $450", "what about Friday?") continue that category
+unless the new message clearly changes topic."""
+
+CATEGORIES = ["CALENDAR", "SOCIAL", "INVOICE", "EMAIL", "CRM", "GENERAL"]
+
+ROUTER_FORMAT = {
+    "type": "json_schema",
+    "schema": {
+        "type": "object",
+        "properties": {"category": {"type": "string", "enum": CATEGORIES}},
+        "required": ["category"],
+        "additionalProperties": False,
+    },
+}
 
 
 class Orchestrator:
@@ -33,6 +47,7 @@ class Orchestrator:
 
     def __init__(self, client: Anthropic | None = None):
         self.client = client or Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        self.last_category: str | None = None
 
         # Lazy-loaded agent instances
         self._calendar_agent = None
@@ -104,8 +119,9 @@ class Orchestrator:
 
         Returns (agent_name, response_text).
         """
-        category = self._classify(user_message)
+        category = self._classify(user_message, previous=self.last_category)
         logger.info(f"[Orchestrator] Classified as: {category}")
+        self.last_category = category
 
         agent = self._get_agent(category)
         if agent:
@@ -123,25 +139,38 @@ class Orchestrator:
             "What can I help you with?"
         )
 
-    def _classify(self, message: str) -> str:
+    def _classify(self, message: str, previous: str | None = None) -> str:
         """Use Claude to classify the message intent."""
+        content = message
+        if previous:
+            content = f"Previous message was handled by: {previous}\n\nNew message: {message}"
         response = self.client.messages.create(
-            model=config.MODEL,
-            max_tokens=20,
+            model=config.ROUTER_MODEL,
+            max_tokens=config.ROUTER_MAX_TOKENS,
             system=ROUTER_PROMPT,
-            messages=[{"role": "user", "content": message}],
+            messages=[{"role": "user", "content": content}],
+            output_config={"effort": config.ROUTER_EFFORT, "format": ROUTER_FORMAT},
         )
-        category = response.content[0].text.strip().upper()
+        if response.stop_reason != "end_turn":
+            logger.warning(f"[Orchestrator] Router stopped with {response.stop_reason}, defaulting to GENERAL")
+            return "GENERAL"
 
-        # Validate
-        valid = {"CALENDAR", "SOCIAL", "INVOICE", "EMAIL", "CRM", "GENERAL"}
-        if category not in valid:
+        # Responses can start with thinking blocks — read the text block.
+        text = next((b.text for b in response.content if b.type == "text"), "")
+        try:
+            category = str(json.loads(text)["category"]).strip().upper()
+        except (ValueError, KeyError, TypeError):
+            logger.warning(f"[Orchestrator] Unparseable router output {text!r}, defaulting to GENERAL")
+            return "GENERAL"
+
+        if category not in CATEGORIES:
             logger.warning(f"[Orchestrator] Unexpected category '{category}', defaulting to GENERAL")
             return "GENERAL"
         return category
 
     def reset(self) -> None:
         """Reset all agent conversation histories."""
+        self.last_category = None
         for agent_attr in [self._calendar_agent, self._email_agent,
                            self._invoice_agent, self._social_agent,
                            self._crm_agent]:

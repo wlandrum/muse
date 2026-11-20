@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from typing import Any
 
 from muse.agents.base import BaseAgent
@@ -53,7 +52,7 @@ The artist's name is {config.ARTIST_NAME}. The platform is Instagram.
 
 ## Important
 
-- Today's date is {datetime.now().strftime("%A, %B %d, %Y")}.
+- The current date and time are given at the end of each user message.
 - The artist's name is {config.ARTIST_NAME}.
 - Platform: Instagram (local drafts only — the artist posts manually).
 - All posts start as DRAFTS. The artist copies the caption to post on Instagram.

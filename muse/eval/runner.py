@@ -42,11 +42,15 @@ class CaseResult:
     seconds: float = 0.0
 
 
-def load_cases(pattern: str = "*", cases_dir: Path = CASES_DIR) -> list[dict]:
+def load_cases(pattern: str = "*", cases_dir: Path = CASES_DIR, router_only: bool = False) -> list[dict]:
+    """Load cases matching `pattern`. Cases marked `router_only` (no agent
+    trajectory) are included only when `router_only` is set."""
     cases = []
     for path in sorted(cases_dir.glob("*.yaml")):
         for case in yaml.safe_load(path.read_text(encoding="utf-8")) or []:
             case["_file"] = path.name
+            if case.get("router_only") and not router_only:
+                continue
             if fnmatch.fnmatch(case["id"], pattern):
                 cases.append(case)
     ids = [c["id"] for c in cases]
@@ -85,7 +89,10 @@ def make_live_client():
         )
     from anthropic import Anthropic
     from muse.config import config
-    return Anthropic(api_key=config.ANTHROPIC_API_KEY)
+    from muse.eval.usage import UsageTrackingClient
+    if not config.ANTHROPIC_API_KEY:
+        raise RuntimeError("ANTHROPIC_API_KEY is not set (looked in the environment and .env).")
+    return UsageTrackingClient(Anthropic(api_key=config.ANTHROPIC_API_KEY))
 
 
 def run_case(case: dict, live_client=None) -> CaseResult:

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from typing import Any
 
 from muse.agents.base import BaseAgent
@@ -50,7 +49,7 @@ You are conversational, efficient, and music-industry-aware. You understand how 
 
 ## Important
 
-- Today's date is {datetime.now().strftime("%A, %B %d, %Y")}.
+- The current date and time are given at the end of each user message.
 - The artist's name is {config.ARTIST_NAME}.
 - The artist's email is {config.ARTIST_EMAIL or "not configured"}.
 - Default payment terms: {config.INVOICE_PAYMENT_TERMS}.
