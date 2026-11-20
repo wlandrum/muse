@@ -37,3 +37,7 @@ Thumbs.db
 
 # ── Misc artifacts ───────────────────────────────────────────────
 =0.4.0
+
+# ── Deployment secrets (Phase 0 VM) ───────────────────────────────
+deploy/muse.env
+deploy/.env

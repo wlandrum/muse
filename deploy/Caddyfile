@@ -1,0 +1,4 @@
+{$MUSE_DOMAIN} {
+	encode gzip
+	reverse_proxy muse:8501
+}
