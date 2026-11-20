@@ -23,7 +23,17 @@ def _resolve(path: str) -> str:
 class Config:
     # Anthropic
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
-    MODEL: str = "claude-sonnet-4-20250514"
+    # Before changing a model or effort level, run the evals (muse/eval).
+    MODEL: str = os.getenv("MUSE_AGENT_MODEL", "claude-sonnet-5-5")
+    AGENT_EFFORT: str = os.getenv("MUSE_AGENT_EFFORT", "medium")
+    # Thinking counts toward max_tokens, so leave room beyond the reply itself.
+    AGENT_MAX_TOKENS: int = 16000
+    # Routing is a one-word classification: a small, fast model is enough.
+    ROUTER_MODEL: str = os.getenv("MUSE_ROUTER_MODEL", "claude-haiku-5-5")
+    ROUTER_EFFORT: str = os.getenv("MUSE_ROUTER_EFFORT", "low")
+    ROUTER_MAX_TOKENS: int = 1024
+    # Retry safety-classifier declines on a fallback model (Claude API only).
+    REFUSAL_FALLBACK: bool = os.getenv("MUSE_REFUSAL_FALLBACK", "1") == "1"
 
     # Google OAuth — single token with both Calendar + Gmail scopes
     GOOGLE_CREDENTIALS_PATH: str = _resolve(os.getenv("GOOGLE_CREDENTIALS_PATH", "credentials.json"))

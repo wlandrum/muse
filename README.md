@@ -230,7 +230,7 @@ muse/
 
 ## Tech Stack
 
-- **LLM:** Claude Sonnet 4 (Anthropic Python SDK)
+- **LLM:** Claude Sonnet 5.5 for agents, Claude Haiku 5.5 for routing (Anthropic Python SDK 2.x; override with `MUSE_AGENT_MODEL` / `MUSE_ROUTER_MODEL`)
 - **Agent Framework:** Custom (raw tool calling, no LangChain)
 - **Calendar:** Google Calendar API + SQLite fallback
 - **Email:** Gmail API + SQLite fallback
