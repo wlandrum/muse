@@ -554,17 +554,23 @@ class CRMTools:
         org_name = contact["organization_name"]
         email = contact["email"]
 
-        # Cross-reference invoices by client_name or client_email
-        invoice_rows = conn.execute(
-            """SELECT i.id, i.invoice_number, i.status, i.invoice_date,
-                      COALESCE(SUM(li.amount), 0) as total
-               FROM invoices i
-               LEFT JOIN invoice_line_items li ON i.id = li.invoice_id
-               WHERE i.client_name = ? OR i.client_email = ?
-               GROUP BY i.id
-               ORDER BY i.invoice_date DESC""",
-            (org_name, email),
-        ).fetchall()
+        # Cross-reference invoices by client_name or client_email.
+        # Only match on email when the contact has one — otherwise '' would
+        # match every invoice created without an email.
+        try:
+            invoice_rows = conn.execute(
+                """SELECT i.id, i.invoice_number, i.status, i.invoice_date,
+                          COALESCE(SUM(li.amount), 0) as total
+                   FROM invoices i
+                   LEFT JOIN invoice_line_items li ON i.id = li.invoice_id
+                   WHERE i.client_name = ? OR (? != '' AND i.client_email = ?)
+                   GROUP BY i.id
+                   ORDER BY i.invoice_date DESC""",
+                (org_name, email, email),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            # Invoices table might not exist if invoicing hasn't been used
+            invoice_rows = []
 
         total_invoiced = sum(r["total"] for r in invoice_rows)
         total_paid = sum(r["total"] for r in invoice_rows if r["status"] == "paid")
@@ -576,9 +582,9 @@ class CRMTools:
         try:
             event_rows = conn.execute(
                 """SELECT * FROM events
-                   WHERE venue = ? OR contact_info LIKE ?
+                   WHERE venue = ? OR (? != '' AND contact_info LIKE ?)
                    ORDER BY start_time DESC""",
-                (org_name, f"%{email}%"),
+                (org_name, email, f"%{email}%"),
             ).fetchall()
             event_count = len(event_rows)
             total_event_pay = sum(r["pay"] or 0 for r in event_rows)
