@@ -11,8 +11,12 @@ python -m muse.eval --case 'invoice-*'  # filter by id glob
 python -m muse.eval -v                  # show tool calls + responses
 pytest tests/test_eval_harness.py       # same cases under pytest (what CI runs)
 
-MUSE_EVAL_ALLOW_LIVE=1 python -m muse.eval --live   # real API — costs money
+MUSE_EVAL_ALLOW_LIVE=1 python -m muse.eval --live   # real API — costs money (~$0.35)
+MUSE_EVAL_ALLOW_LIVE=1 python -m muse.eval --live --router-only   # routing only (~$0.003)
 ```
+
+Cases marked `router_only: true` carry just an input and the expected route;
+they run only under `--router-only`.
 
 ## Modes
 

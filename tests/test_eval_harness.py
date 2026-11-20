@@ -38,6 +38,12 @@ def test_match(expected, actual, ok):
     assert match(expected, actual) is ok
 
 
+def test_router_only_cases_are_separate():
+    all_routes = load_cases(router_only=True)
+    assert len(all_routes) > len(CASES)
+    assert not any(c.get("router_only") for c in CASES)
+
+
 def test_is_subsequence():
     assert is_subsequence(["a", "c"], ["a", "b", "c"])
     assert not is_subsequence(["c", "a"], ["a", "b", "c"])
@@ -113,3 +119,22 @@ def test_sandbox_does_not_touch_real_db():
     run_case(_case("invoice-create-draft"))
     assert config.DB_PATH == before
     assert (os.path.getmtime(before) if os.path.exists(before) else None) == mtime
+
+
+def test_usage_tracking_cost():
+    from types import SimpleNamespace
+    from muse.eval.usage import UsageTrackingClient
+
+    def fake_create(**kwargs):
+        usage = SimpleNamespace(input_tokens=1_000_000, output_tokens=100_000,
+                                cache_read_input_tokens=1_000_000, cache_creation_input_tokens=0)
+        return SimpleNamespace(model=kwargs["model"], usage=usage)
+
+    inner = SimpleNamespace(messages=SimpleNamespace(create=fake_create),
+                            beta=SimpleNamespace(messages=SimpleNamespace(create=fake_create)))
+    tracker = UsageTrackingClient(inner)
+    tracker.messages.create(model="claude-haiku-5-5")
+    tracker.beta.messages.create(model="claude-sonnet-5-5")
+    assert tracker.cost("claude-haiku-5-5") == pytest.approx(0.10 + 0.05 + 0.01)
+    assert tracker.cost("claude-sonnet-5-5") == pytest.approx(2.00 + 1.00 + 0.20)
+    assert "total" in tracker.report()
