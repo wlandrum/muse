@@ -38,7 +38,7 @@ User ──▶ Orchestrator ──▶ Calendar Agent  ──▶ Google Calendar 
 
 ### 1. Clone and install
 ```bash
-git clone https://github.com/yourusername/muse.git
+git clone https://github.com/wlandrum/muse.git
 cd muse
 pip install -r requirements.txt
 ```
@@ -49,44 +49,28 @@ cp .env.example .env
 # Edit .env and add your ANTHROPIC_API_KEY
 ```
 
-### 3. Test the Calendar Agent (CLI)
+### 3. Chat with Muse in the terminal
 ```bash
-python -m tests.test_calendar_cli
+python -m scripts.chat                    # full Muse — the router picks the agent
+python -m scripts.chat --agent invoice    # or talk to one agent directly
 ```
-No Google credentials needed — runs in local SQLite mode.
+No Google credentials needed — runs on local SQLite (with sample emails, invoices, and contacts) and ChromaDB. Invoice PDFs are saved to `invoices/`.
 
-### 4. Test the Email Agent (CLI)
-```bash
-python -m tests.test_email_cli
-```
-No Google credentials needed — runs with sample booking emails in local mode.
-
-### 5. Test the Invoice Agent (CLI)
-```bash
-python -m tests.test_invoice_cli
-```
-No credentials needed — runs with sample invoices in local SQLite mode. PDFs are saved to the `invoices/` directory.
-
-### 6. Test the Social Media Agent (CLI)
-```bash
-python -m tests.test_social_cli
-```
-No credentials needed — runs with ChromaDB for voice matching and SQLite for post drafts. Voice samples are seeded automatically on first run.
-
-### 7. Run the Streamlit UI
+### 4. Run the Streamlit UI
 ```bash
 streamlit run ui/app.py
 ```
 
-### 8. Run the evals
+### 5. Run the tests and evals
 ```bash
 pip install -r requirements-dev.txt
-python -m muse.eval        # scenario evals for every agent — offline, no API calls
-pytest                     # same evals plus grader tests
+pytest                     # unit tests + scenario evals — offline, no API key needed
+python -m muse.eval        # eval report on its own
 ```
+CI runs both on every pull request (Python 3.11 and 3.12).
 See [muse/eval/README.md](muse/eval/README.md) for the case format and live mode.
 
-### 9. (Optional) Connect Google Calendar
+### 6. (Optional) Connect Google Calendar
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a project and enable the Google Calendar API
 3. Create OAuth 2.0 credentials (Desktop application)
@@ -94,7 +78,7 @@ See [muse/eval/README.md](muse/eval/README.md) for the case format and live mode
 5. Add your Google account as a test user in the OAuth consent screen
 6. On first run, Muse will open a browser for OAuth consent
 
-### 10. (Optional) Connect Gmail
+### 7. (Optional) Connect Gmail
 1. In the same Google Cloud Console project, enable the **Gmail API**
 2. The same `credentials.json` file works for both Calendar and Gmail
 3. Add the `gmail.modify` scope to your OAuth consent screen
@@ -236,11 +220,9 @@ muse/
 │       └── voice_engine.py    # ChromaDB RAG for voice matching
 ├── ui/
 │   └── app.py                 # Streamlit interface
-├── tests/
-│   ├── test_calendar_cli.py   # Calendar CLI testing
-│   ├── test_email_cli.py      # Email CLI testing
-│   ├── test_invoice_cli.py    # Invoice CLI testing
-│   └── test_social_cli.py     # Social media CLI testing
+├── tests/                     # pytest: tool backends, agent loop, router, evals
+├── scripts/
+│   └── chat.py                # terminal chat (all agents or one)
 ├── invoices/                  # Generated PDF output directory
 ├── chroma_db/                 # ChromaDB persistent storage (auto-created)
 └── requirements.txt
