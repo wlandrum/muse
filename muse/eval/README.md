@@ -62,7 +62,8 @@ Cases live in `cases/*.yaml`, one list per file:
 ```
 
 Matchers: literals (strings compare case-insensitively, numbers by value), or
-`{contains}`, `{startswith}`, `{regex}`, `{one_of: [...]}`, `{gte}`, `{lte}`.
+`{contains}`, `{startswith}`, `{regex}`, `{one_of: [...]}`, `{gte}`, `{lte}`,
+`{min_len}`, `{max_len}`.
 A plain dict matches as a subset.
 
 Every tool call is also validated against the agent's `input_schema`.

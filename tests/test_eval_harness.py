@@ -30,6 +30,9 @@ def test_eval_case(case):
     ({"event_type": "gig", "pay": 400}, {"event_type": "gig", "pay": 400, "venue": "x"}, True),
     ({"event_type": "gig"}, {"pay": 400}, False),
     ({"contains": "x"}, None, False),
+    ({"min_len": 1}, [{"id": 1}], True),
+    ({"min_len": 1}, [], False),
+    ({"max_len": 0}, [], True),
 ])
 def test_match(expected, actual, ok):
     assert match(expected, actual) is ok
