@@ -17,6 +17,7 @@ def match(expected: Any, actual: Any) -> bool:
     Expectations are literals (compared with ==, case-insensitively for
     strings) or a single-key operator dict:
       {contains: s} {startswith: s} {regex: p} {one_of: [...]} {gte: n} {lte: n}
+      {min_len: n} {max_len: n}   (for lists/strings)
     Dicts without an operator key are matched as partial subsets.
     """
     if isinstance(expected, dict):
@@ -34,6 +35,10 @@ def match(expected: Any, actual: Any) -> bool:
                 return actual is not None and float(actual) >= float(arg)
             if op == "lte":
                 return actual is not None and float(actual) <= float(arg)
+            if op == "min_len":
+                return actual is not None and len(actual) >= arg
+            if op == "max_len":
+                return actual is not None and len(actual) <= arg
         if not isinstance(actual, dict):
             return False
         return all(k in actual and match(v, actual[k]) for k, v in expected.items())

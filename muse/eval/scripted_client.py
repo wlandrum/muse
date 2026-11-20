@@ -6,6 +6,7 @@ real code paths (routing, tool loop, tool execution) without any API calls.
 
 from __future__ import annotations
 
+import copy
 import itertools
 from typing import Any, Callable
 
@@ -48,7 +49,8 @@ class ScriptedClient:
         self.messages = self  # mimic client.messages.create(...)
 
     def create(self, **kwargs) -> Message:
-        self.requests.append(kwargs)
+        # Snapshot: agents pass their live history list, which keeps mutating.
+        self.requests.append(copy.deepcopy(kwargs))
 
         if kwargs.get("system") == ROUTER_PROMPT:
             return self._message([TextBlock(type="text", text=self.route)], "end_turn")

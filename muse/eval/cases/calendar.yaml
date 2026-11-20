@@ -21,6 +21,8 @@
     - text: "You're free. Booked: Session at West End Sound, Thu Dec 3, 12:00 PM - 5:00 PM, $500, contact Miles."
   expect:
     tools_called: [check_conflicts, create_event]
+    tool_results:
+      check_conflicts: {max_len: 0}
     tool_args:
       create_event:
         event_type: session
@@ -54,6 +56,8 @@
   expect:
     tools_called: [check_conflicts]
     tools_not_called: [create_event]
+    tool_results:
+      check_conflicts: {min_len: 1}   # the 7-11 PM gig overlaps 8-10 PM
     state:
       - sql: "SELECT count(*) FROM events"
         equals: 1

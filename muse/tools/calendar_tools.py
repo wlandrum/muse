@@ -14,6 +14,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timedelta
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from muse.config import config
 from muse.models.events import GigEvent, EventType, EventStatus, ConflictInfo
@@ -28,6 +29,43 @@ try:
 except ImportError:
     GOOGLE_AVAILABLE = False
     logger.info("Google API libraries not installed — using local calendar")
+
+
+# Fields the agent may change via update_event (mirrors the events table).
+UPDATABLE_FIELDS = {
+    "title", "event_type", "venue", "address", "start_time", "end_time",
+    "load_in_time", "soundcheck_time", "set_time", "pay", "pay_notes",
+    "contact_name", "contact_info", "gear_notes", "status", "notes",
+}
+
+
+def _window_bounds(start: str, end: str) -> tuple[str, str]:
+    """Expand date-only bounds to cover whole days (end date is inclusive)."""
+    if "T" not in start:
+        start += "T00:00:00"
+    if "T" not in end:
+        end += "T23:59:59"
+    return start, end
+
+
+def _to_rfc3339(value: str) -> str:
+    """Give a naive ISO datetime the artist's timezone, as the Google API expects.
+
+    Naive times from the agent are local to the artist (events are created
+    with timeZone=DEFAULT_TIMEZONE), so they must not be treated as UTC.
+    """
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=ZoneInfo(config.DEFAULT_TIMEZONE))
+    return dt.isoformat()
+
+
+def _parse_local(value: str) -> datetime:
+    """Parse an ISO datetime as naive local time in the artist's timezone."""
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(ZoneInfo(config.DEFAULT_TIMEZONE)).replace(tzinfo=None)
+    return dt
 
 
 class CalendarTools:
@@ -155,24 +193,23 @@ class CalendarTools:
         """
         events = self.list_events(search_start, search_end)
 
-        start_dt = datetime.fromisoformat(search_start.replace("Z", "+00:00"))
-        end_dt = datetime.fromisoformat(search_end.replace("Z", "+00:00"))
+        start_dt = _parse_local(search_start)
+        end_dt = _parse_local(search_end)
         duration = timedelta(hours=duration_hours)
 
-        # Sort events by start time
-        sorted_events = sorted(events, key=lambda e: e["start_time"])
+        # Sort events by start time, ignoring cancelled ones
+        sorted_events = sorted(
+            (e for e in events if e.get("status") != "cancelled"),
+            key=lambda e: _parse_local(e["start_time"]),
+        )
 
         # Find gaps between events
         available = []
         current = start_dt
 
         for event in sorted_events:
-            event_start = datetime.fromisoformat(
-                event["start_time"].replace("Z", "+00:00")
-            )
-            event_end = datetime.fromisoformat(
-                event["end_time"].replace("Z", "+00:00")
-            )
+            event_start = _parse_local(event["start_time"])
+            event_end = _parse_local(event["end_time"])
 
             if event_start > current:
                 gap = event_start - current
@@ -240,8 +277,11 @@ class CalendarTools:
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
 
-        query = "SELECT * FROM events WHERE start_time >= ? AND start_time <= ?"
-        params: list = [start_date, end_date]
+        # Return every event that overlaps the window (same semantics as
+        # Google's timeMin/timeMax), not just those starting inside it.
+        start_date, end_date = _window_bounds(start_date, end_date)
+        query = "SELECT * FROM events WHERE start_time < ? AND end_time > ?"
+        params: list = [end_date, start_date]
 
         if event_type:
             query += " AND event_type = ?"
@@ -254,26 +294,34 @@ class CalendarTools:
         return [dict(row) for row in rows]
 
     def _local_update(self, event_id: str, updates: dict) -> dict:
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        filtered = {k: v for k, v in updates.items() if k in UPDATABLE_FIELDS}
+        if not filtered:
+            return {"error": f"No valid fields to update. Allowed: {', '.join(sorted(UPDATABLE_FIELDS))}"}
+
         set_clauses = []
         params = []
-        for key, value in updates.items():
+        for key, value in filtered.items():
             set_clauses.append(f"{key} = ?")
             params.append(value)
         params.append(event_id)
 
-        conn.execute(
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        cursor = conn.execute(
             f"UPDATE events SET {', '.join(set_clauses)} WHERE id = ?", params
         )
         conn.commit()
         conn.close()
-        return {"status": "updated", "event_id": event_id, "updates": updates}
+        if cursor.rowcount == 0:
+            return {"error": f"Event not found: {event_id}"}
+        return {"status": "updated", "event_id": event_id, "updates": filtered}
 
     def _local_delete(self, event_id: str) -> dict:
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
-        conn.execute("UPDATE events SET status = 'cancelled' WHERE id = ?", (event_id,))
+        cursor = conn.execute("UPDATE events SET status = 'cancelled' WHERE id = ?", (event_id,))
         conn.commit()
         conn.close()
+        if cursor.rowcount == 0:
+            return {"error": f"Event not found: {event_id}"}
         return {"status": "cancelled", "event_id": event_id}
 
     # ── Google Calendar Implementations ─────────────────────────────
@@ -303,11 +351,8 @@ class CalendarTools:
     def _google_list(
         self, start_date: str, end_date: str, event_type: str | None = None
     ) -> list[dict]:
-        # Ensure dates end with Z for Google API
-        if not start_date.endswith("Z") and "+" not in start_date:
-            start_date += "T00:00:00Z" if "T" not in start_date else "Z"
-        if not end_date.endswith("Z") and "+" not in end_date:
-            end_date += "T23:59:59Z" if "T" not in end_date else "Z"
+        start_date, end_date = _window_bounds(start_date, end_date)
+        start_date, end_date = _to_rfc3339(start_date), _to_rfc3339(end_date)
 
         results = (
             self.service.events()
