@@ -1,0 +1,86 @@
+# Invoice agent cases. Local mode seeds two sample invoices; use unique client names.
+
+- id: invoice-create-draft
+  description: Creates a DRAFT invoice with the right line item and does not jump to PDF.
+  input: "Invoice Smith's Olde Bar for the $350 gig on November 14, 2026."
+  route: INVOICE
+  trajectory:
+    - tools:
+        - name: create_invoice
+          input:
+            client_name: Smith's Olde Bar
+            line_items:
+              - {description: "Live performance @ Smith's Olde Bar (2026-11-14)", amount: 350, event_date: "2026-11-14", event_type: gig, venue: Smith's Olde Bar}
+    - text: "Draft invoice for Smith's Olde Bar: $350.00. Want the PDF?"
+  expect:
+    tools_called: [create_invoice]
+    tools_not_called: [generate_pdf, mark_paid]
+    tool_args:
+      create_invoice:
+        client_name: {contains: Smith}
+    state:
+      - sql: "SELECT count(*) FROM invoices WHERE client_name LIKE 'Smith%' AND status = 'draft'"
+        equals: 1
+      - sql: "SELECT sum(li.amount) FROM invoice_line_items li JOIN invoices i ON i.id = li.invoice_id WHERE i.client_name LIKE 'Smith%'"
+        equals: 350
+
+- id: invoice-generate-pdf
+  description: Finds the invoice and writes a PDF.
+  input: "Generate the PDF for the Smith's Olde Bar invoice."
+  route: INVOICE
+  setup:
+    - agent: INVOICE
+      tool: create_invoice
+      input: {client_name: Smith's Olde Bar, line_items: [{description: Live performance, amount: 350}]}
+      save_as: inv
+  trajectory:
+    - tools:
+        - name: list_invoices
+          input: {}
+    - tools:
+        - name: generate_pdf
+          input: {invoice_id: "${inv.invoice_id}"}
+    - text: "PDF ready for Smith's Olde Bar ($350)."
+  expect:
+    tools_called: [generate_pdf]
+    state:
+      - files: "invoices/*.pdf"
+        count: 1
+
+- id: invoice-mark-paid
+  description: Marks the right invoice paid.
+  input: "Smith's Olde Bar paid me via Venmo today."
+  route: INVOICE
+  setup:
+    - agent: INVOICE
+      tool: create_invoice
+      input: {client_name: Smith's Olde Bar, line_items: [{description: Live performance, amount: 350}]}
+      save_as: inv
+  trajectory:
+    - tools:
+        - name: list_invoices
+          input: {}
+    - tools:
+        - name: mark_paid
+          input: {invoice_id: "${inv.invoice_id}", payment_notes: Venmo}
+    - text: "Marked INV for Smith's Olde Bar as paid (Venmo)."
+  expect:
+    tools_called: [mark_paid]
+    tool_args:
+      mark_paid: {invoice_id: {startswith: inv_}}
+    state:
+      - sql: "SELECT status FROM invoices WHERE client_name LIKE 'Smith%'"
+        equals: paid
+
+- id: invoice-income-summary
+  description: Income questions use the summary tool and change nothing.
+  input: "How much have I made in 2026?"
+  route: INVOICE
+  trajectory:
+    - tools:
+        - name: get_income_summary
+          input: {start_date: "2026-01-01", end_date: "2026-12-31"}
+    - text: "Here's your 2026 income summary."
+  expect:
+    tools_called: [get_income_summary]
+    tools_not_called: [create_invoice, mark_paid, update_invoice]

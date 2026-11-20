@@ -77,8 +77,12 @@ class VoiceEngine:
     for a given query using semantic similarity search.
     """
 
-    def __init__(self, persist_dir: str | None = None):
+    # Override hook for tests/evals (e.g. an offline deterministic embedder).
+    default_embedding_function = None
+
+    def __init__(self, persist_dir: str | None = None, embedding_function=None):
         self.persist_dir = persist_dir or config.CHROMADB_PATH
+        embedding_function = embedding_function or self.default_embedding_function
         self.collection_name = "artist_voice_samples"
 
         # Initialize ChromaDB — in-memory on cloud, persistent locally
@@ -93,9 +97,13 @@ class VoiceEngine:
                 logger.warning(f"[VoiceEngine] PersistentClient failed ({e}), falling back to in-memory")
                 self.client = chromadb.Client()
 
+        collection_kwargs = {}
+        if embedding_function is not None:
+            collection_kwargs["embedding_function"] = embedding_function
         self.collection = self.client.get_or_create_collection(
             name=self.collection_name,
             metadata={"description": "Artist voice samples for caption generation"},
+            **collection_kwargs,
         )
 
         # Seed if empty
