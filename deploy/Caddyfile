@@ -1,0 +1,16 @@
+{$MUSE_DOMAIN} {
+	encode gzip
+	reverse_proxy muse:8501
+}
+
+# Public home page and privacy policy (required by Google's OAuth consent screen).
+{$MUSE_SITE_DOMAIN} {
+	encode gzip
+	root * /srv/site
+	try_files {path} {path}.html
+	file_server
+}
+
+www.{$MUSE_SITE_DOMAIN} {
+	redir https://{$MUSE_SITE_DOMAIN}{uri} permanent
+}

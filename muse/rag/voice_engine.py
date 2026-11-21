@@ -107,7 +107,7 @@ class VoiceEngine:
         )
 
         # Seed if empty
-        if self.collection.count() == 0:
+        if config.SEED_DEMO_DATA and self.collection.count() == 0:
             self._seed_samples()
 
         logger.info(

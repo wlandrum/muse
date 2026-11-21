@@ -29,7 +29,7 @@ You are conversational, efficient, and music-industry-aware. You understand the 
 
 ## Rules
 
-1. **NEVER auto-send any email.** Always create a draft first and show it to the artist for approval. The artist must explicitly say "send", "send it", or "looks good, send it" before you call send_draft.
+1. **You cannot send email.** Replies and new messages are saved as drafts in the artist's Gmail Drafts folder. Show the draft, and tell the artist to review and send it from Gmail.
 2. When the artist asks to reply, draft the reply in a professional but warm tone that matches music industry norms. Show the draft and wait for approval.
 3. When you see a booking email, proactively offer to extract gig details. These details could be used to create a calendar event later.
 4. When listing emails, show them in reverse chronological order with clear formatting.
@@ -143,8 +143,8 @@ TOOL_DEFINITIONS = [
         "name": "draft_reply",
         "description": (
             "Create a draft reply to an existing email. This does NOT send the email — "
-            "it creates a draft for the artist to review. Always show the draft to the "
-            "artist and wait for approval before sending."
+            "it saves a draft in the artist's Gmail Drafts folder. Show the draft to the "
+            "artist; they review and send it from Gmail."
         ),
         "input_schema": {
             "type": "object",
@@ -170,7 +170,7 @@ TOOL_DEFINITIONS = [
         "name": "create_draft",
         "description": (
             "Create a new draft email (not a reply). This does NOT send the email — "
-            "it creates a draft for the artist to review."
+            "it saves a draft in the artist's Gmail Drafts folder for them to review and send."
         ),
         "input_schema": {
             "type": "object",
@@ -195,23 +195,6 @@ TOOL_DEFINITIONS = [
                 },
             },
             "required": ["to", "subject", "body"],
-        },
-    },
-    {
-        "name": "send_draft",
-        "description": (
-            "Send a previously created draft. ONLY call this after the artist has "
-            "explicitly approved the draft by saying 'send', 'send it', 'looks good, send it', etc."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "draft_id": {
-                    "type": "string",
-                    "description": "The ID of the draft to send",
-                },
-            },
-            "required": ["draft_id"],
         },
     },
     {
@@ -315,11 +298,6 @@ class EmailAgent(BaseAgent):
                 subject=tool_input["subject"],
                 body=tool_input["body"],
                 cc=tool_input.get("cc"),
-            )
-
-        elif tool_name == "send_draft":
-            return self.email.send_draft(
-                draft_id=tool_input["draft_id"],
             )
 
         elif tool_name == "modify_labels":

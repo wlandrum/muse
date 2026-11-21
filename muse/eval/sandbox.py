@@ -57,6 +57,7 @@ _PATCHED_ATTRS = (
     "CHROMADB_PATH",
     "INVOICE_OUTPUT_DIR",
     "GOOGLE_TOKEN_PATH",
+    "SEED_DEMO_DATA",
 )
 
 
@@ -73,6 +74,8 @@ def sandbox() -> Iterator[str]:
         config.INVOICE_OUTPUT_DIR = os.path.join(tmp, "invoices")
         # Never exists → Google tools fall back to local mode.
         config.GOOGLE_TOKEN_PATH = os.path.join(tmp, "no_token.json")
+        # Cases rely on the sample emails, invoices and contacts.
+        config.SEED_DEMO_DATA = True
         VoiceEngine.default_embedding_function = HashingEmbeddingFunction()
         yield tmp
     finally:
