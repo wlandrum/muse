@@ -49,9 +49,11 @@ gcloud compute disks add-resource-policies muse --zone us-east1-b --resource-pol
 
 ## 2. Point the domain at it
 
-Add an `A` record for `app.<your-domain>` with the address printed above. Wait
-until `nslookup app.<your-domain>` returns it before step 5; Caddy needs that to
-get a certificate.
+Add `A` records with the address printed above for `app` (the app), `@` (the
+bare domain) and `www`. The bare domain serves the home page and privacy policy
+in `deploy/site/`, which Google's consent screen requires before the app can be
+published. Wait until `nslookup app.<your-domain>` returns the address before
+step 5; Caddy needs that to get a certificate.
 
 ## 3. Google sign-in
 
@@ -60,8 +62,10 @@ In the Google Cloud console for `root-logic-456318-q3`:
 1. **APIs & Services → Credentials →** the *Web application* OAuth client: add
    `https://app.<your-domain>` as an authorized redirect URI. Download its JSON;
    it becomes `credentials.json` on the VM.
-2. **OAuth consent screen:** add `<your-domain>` as an authorized domain, and set
-   the publishing status to **In production**. In *Testing* status, Google
+2. **OAuth consent screen:** on *Branding*, name the app, add `<your-domain>` as
+   an authorized domain, and set the home page to `https://<your-domain>` and
+   the privacy policy to `https://<your-domain>/privacy`. Then on *Audience*,
+   set the publishing status to **In production**. In *Testing* status, Google
    expires refresh tokens after 7 days. The app stays unverified, so the artist
    sees a warning screen once when connecting; that is expected.
 3. Make sure the Calendar and Gmail APIs are enabled.
@@ -86,7 +90,7 @@ gcloud compute scp muse.env path/to/web-client.json muse:~ --zone us-east1-b
 gcloud compute ssh muse --zone us-east1-b -- '
   sudo install -m 600 ~/muse.env /opt/muse/deploy/muse.env &&
   sudo install -m 600 -o 1000 -g 1000 ~/web-client.json /var/lib/muse/credentials.json &&
-  echo "MUSE_DOMAIN=app.<your-domain>" | sudo tee /opt/muse/deploy/.env &&
+  printf "MUSE_DOMAIN=app.<your-domain>\nMUSE_SITE_DOMAIN=<your-domain>\n" | sudo tee /opt/muse/deploy/.env &&
   rm ~/muse.env ~/web-client.json'
 ```
 
