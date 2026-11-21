@@ -2,11 +2,13 @@
 Streamlit UI with chat interface and calendar dashboard.
 """
 
+import hashlib
 import hmac
 import json
 import logging
 import os
 import sys
+import time
 from datetime import datetime, timedelta
 
 import streamlit as st
@@ -87,6 +89,38 @@ st.markdown("""
 # ── Password Gate ───────────────────────────────────────────────────
 # Runs before anything else, including the OAuth callback, so nobody can
 # connect their own Google account to a single-artist deployment.
+#
+# Google's redirect back lands in a new Streamlit session, so the OAuth
+# state carries proof that the password was entered: a timestamp signed with
+# the password, valid for OAUTH_STATE_TTL seconds.
+OAUTH_STATE_TTL = 15 * 60
+
+
+def _sign(value: str) -> str:
+    return hmac.new(config.APP_PASSWORD.encode(), value.encode(), hashlib.sha256).hexdigest()
+
+
+def _signed_oauth_state(service: str) -> str:
+    payload = f"{service}.{int(time.time())}"
+    return f"{payload}.{_sign(payload)}"
+
+
+def _oauth_state_is_valid(state: str) -> bool:
+    payload, _, signature = state.rpartition(".")
+    _, _, issued = payload.partition(".")
+    if not issued.isdigit() or not hmac.compare_digest(signature, _sign(payload)):
+        return False
+    return 0 <= time.time() - int(issued) <= OAUTH_STATE_TTL
+
+
+if (
+    config.APP_PASSWORD
+    and not st.session_state.get("_authed")
+    and st.query_params.get("code")
+    and _oauth_state_is_valid(st.query_params.get("state", ""))
+):
+    st.session_state["_authed"] = True
+
 if config.APP_PASSWORD and not st.session_state.get("_authed"):
     st.title("🎵 Muse")
     with st.form("login"):
@@ -197,7 +231,7 @@ with st.sidebar:
                 scopes=config.GOOGLE_SCOPES,
                 client_config=_client_config,
                 redirect_uri=get_app_url(),
-                state="google",
+                state=_signed_oauth_state("google") if config.APP_PASSWORD else "google",
             )
             st.link_button(
                 "🔗 Connect Google",

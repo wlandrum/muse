@@ -63,18 +63,26 @@ def _create_flow(
     client_config: dict | None = None,
     credentials_path: str | None = None,
 ) -> "Flow":
-    """Create a Flow from either a client config dict or a file."""
+    """Create a Flow from either a client config dict or a file.
+
+    PKCE is off: the code verifier would live in the Flow object, but the
+    callback arrives in a fresh Streamlit session and exchanges the code with
+    a new Flow, so Google would reject it ("Missing code verifier"). The web
+    client authenticates with its client secret instead.
+    """
     if client_config:
         return Flow.from_client_config(
             client_config,
             scopes=scopes,
             redirect_uri=redirect_uri,
+            autogenerate_code_verifier=False,
         )
     elif credentials_path:
         return Flow.from_client_secrets_file(
             credentials_path,
             scopes=scopes,
             redirect_uri=redirect_uri,
+            autogenerate_code_verifier=False,
         )
     else:
         raise ValueError("Either client_config or credentials_path must be provided")
