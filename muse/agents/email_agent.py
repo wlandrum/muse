@@ -252,7 +252,7 @@ class EmailAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.email = EmailTools()
+        self.email = EmailTools(db_path=self.db_path)
 
     @property
     def name(self) -> str:

@@ -257,7 +257,10 @@ class InvoiceAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.invoices = InvoiceTools()
+        self.invoices = InvoiceTools(db_path=self.db_path)
+        # (filename, PDF bytes) from the last generate_pdf call, for the UI to
+        # offer as a download. The bytes never go to the model.
+        self.pending_pdf: tuple[str, bytes] | None = None
 
     @property
     def name(self) -> str:
@@ -308,9 +311,10 @@ class InvoiceAgent(BaseAgent):
             )
 
         elif tool_name == "generate_pdf":
-            return self.invoices.generate_pdf(
+            result = self.invoices.generate_pdf(
                 invoice_id=tool_input["invoice_id"],
             )
+            return self._hold_pdf_for_download(result)
 
         elif tool_name == "get_income_summary":
             return self.invoices.get_income_summary(
@@ -320,3 +324,28 @@ class InvoiceAgent(BaseAgent):
 
         else:
             return {"error": f"Unknown tool: {tool_name}"}
+
+    def _hold_pdf_for_download(self, result: Any) -> Any:
+        """Keep the PDF for the UI's download button and tell the model so.
+
+        In cloud mode the tool returns the PDF bytes, which would otherwise be
+        sent to the model as text. Saved to disk on a server, the file is out
+        of the artist's reach, so it is offered for download either way.
+        """
+        if not isinstance(result, dict) or result.get("status") != "pdf_generated":
+            return result
+        filename = result.get("filename", "invoice.pdf")
+        pdf_bytes = result.pop("pdf_bytes", None)
+        if pdf_bytes is None and result.get("filepath"):
+            try:
+                with open(result["filepath"], "rb") as f:
+                    pdf_bytes = f.read()
+            except OSError as e:
+                logger.warning(f"[InvoiceAgent] Couldn't read {result['filepath']}: {e}")
+        if pdf_bytes:
+            self.pending_pdf = (filename, pdf_bytes)
+            result["message"] = (
+                "PDF is ready. A download button appears under your reply, "
+                "so point the artist to it."
+            )
+        return result
