@@ -1,0 +1,15 @@
+# Tester round on the Phase 0 VM. Layer this file over docker-compose.yml to
+# let a few invited artists try Muse with sample data:
+#
+#   sudo docker compose -f docker-compose.yml -f docker-compose.tester.yml up -d --build
+#
+# Each browser session gets its own copy of the sample data, which clears on
+# refresh, and Google stays off. The artist data in /var/lib/muse is never
+# read or changed while this is on. To go back to the single-artist setup,
+# run `sudo docker compose up -d` without this file.
+services:
+  muse:
+    environment:
+      MUSE_TESTER_MODE: "1"
+      MUSE_SINGLE_USER: "0"
+      MUSE_SEED_DEMO_DATA: "1"
