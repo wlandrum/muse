@@ -80,10 +80,17 @@ class VoiceEngine:
     # Override hook for tests/evals (e.g. an offline deterministic embedder).
     default_embedding_function = None
 
-    def __init__(self, persist_dir: str | None = None, embedding_function=None):
+    def __init__(
+        self,
+        persist_dir: str | None = None,
+        embedding_function=None,
+        collection_name: str | None = None,
+    ):
         self.persist_dir = persist_dir or config.CHROMADB_PATH
         embedding_function = embedding_function or self.default_embedding_function
-        self.collection_name = "artist_voice_samples"
+        # In-memory Chroma clients in one process share collections, so a
+        # tester session passes its own name to keep its samples separate.
+        self.collection_name = collection_name or "artist_voice_samples"
 
         # Initialize ChromaDB — in-memory on cloud, persistent locally
         if is_cloud():
@@ -107,7 +114,7 @@ class VoiceEngine:
         )
 
         # Seed if empty
-        if self.collection.count() == 0:
+        if config.SEED_DEMO_DATA and self.collection.count() == 0:
             self._seed_samples()
 
         logger.info(

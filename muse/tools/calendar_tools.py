@@ -87,10 +87,11 @@ TIME_FIELDS = {"start_time", "end_time", "load_in_time", "soundcheck_time", "set
 class CalendarTools:
     """Wraps Google Calendar API (or local fallback) for the Calendar Agent."""
 
-    def __init__(self):
+    def __init__(self, db_path: str | None = None):
         self.service = None
-        self.use_local = not GOOGLE_AVAILABLE
-        self.db_path = config.DB_PATH
+        # Tester mode never touches a Google account, even one saved on disk.
+        self.use_local = not GOOGLE_AVAILABLE or config.TESTER_MODE
+        self.db_path = db_path or config.DB_PATH
 
         if not self.use_local:
             try:

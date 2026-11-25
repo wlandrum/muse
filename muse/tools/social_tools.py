@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 import uuid
 from datetime import datetime
@@ -61,11 +62,17 @@ HASHTAG_LIBRARY = {
 class SocialTools:
     """Social media post management with voice-matched caption generation."""
 
-    def __init__(self):
-        self.db_path = config.DB_PATH
-        self.voice_engine = VoiceEngine()
+    def __init__(self, db_path: str | None = None):
+        self.db_path = db_path or config.DB_PATH
+        # A separate database gets its own voice samples too.
+        collection = None
+        if db_path:
+            stem = os.path.splitext(os.path.basename(db_path))[0]
+            collection = f"artist_voice_samples_{stem}"[:63]
+        self.voice_engine = VoiceEngine(collection_name=collection)
         self._init_db()
-        self._seed_sample_data()
+        if config.SEED_DEMO_DATA:
+            self._seed_sample_data()
 
     def _init_db(self) -> None:
         """Create the social_posts table if it doesn't exist."""

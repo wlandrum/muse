@@ -45,8 +45,11 @@ class Orchestrator:
     (ChromaDB, Google OAuth) are only initialized when needed.
     """
 
-    def __init__(self, client: Anthropic | None = None):
+    def __init__(self, client: Anthropic | None = None, db_path: str | None = None):
         self.client = client or Anthropic(api_key=config.ANTHROPIC_API_KEY)
+        # Where every agent's data lives. None means config.DB_PATH; tester
+        # mode gives each browser session its own file.
+        self.db_path = db_path
         self.last_category: str | None = None
 
         # Lazy-loaded agent instances
@@ -62,7 +65,7 @@ class Orchestrator:
     def calendar_agent(self):
         if self._calendar_agent is None:
             from muse.agents.calendar_agent import CalendarAgent
-            self._calendar_agent = CalendarAgent(client=self.client)
+            self._calendar_agent = CalendarAgent(client=self.client, db_path=self.db_path)
             logger.info("[Orchestrator] Calendar agent initialized")
         return self._calendar_agent
 
@@ -70,7 +73,7 @@ class Orchestrator:
     def email_agent(self):
         if self._email_agent is None:
             from muse.agents.email_agent import EmailAgent
-            self._email_agent = EmailAgent(client=self.client)
+            self._email_agent = EmailAgent(client=self.client, db_path=self.db_path)
             logger.info("[Orchestrator] Email agent initialized")
         return self._email_agent
 
@@ -78,7 +81,7 @@ class Orchestrator:
     def invoice_agent(self):
         if self._invoice_agent is None:
             from muse.agents.invoice_agent import InvoiceAgent
-            self._invoice_agent = InvoiceAgent(client=self.client)
+            self._invoice_agent = InvoiceAgent(client=self.client, db_path=self.db_path)
             logger.info("[Orchestrator] Invoice agent initialized")
         return self._invoice_agent
 
@@ -86,7 +89,7 @@ class Orchestrator:
     def social_agent(self):
         if self._social_agent is None:
             from muse.agents.social_agent import SocialAgent
-            self._social_agent = SocialAgent(client=self.client)
+            self._social_agent = SocialAgent(client=self.client, db_path=self.db_path)
             logger.info("[Orchestrator] Social agent initialized")
         return self._social_agent
 
@@ -94,7 +97,7 @@ class Orchestrator:
     def crm_agent(self):
         if self._crm_agent is None:
             from muse.agents.crm_agent import CRMAgent
-            self._crm_agent = CRMAgent(client=self.client)
+            self._crm_agent = CRMAgent(client=self.client, db_path=self.db_path)
             logger.info("[Orchestrator] CRM agent initialized")
         return self._crm_agent
 
@@ -167,6 +170,13 @@ class Orchestrator:
             logger.warning(f"[Orchestrator] Unexpected category '{category}', defaulting to GENERAL")
             return "GENERAL"
         return category
+
+    def take_pending_pdf(self) -> tuple[str, bytes] | None:
+        """Hand the UI any invoice PDF made during the last message, once."""
+        if self._invoice_agent is None:
+            return None
+        pdf, self._invoice_agent.pending_pdf = self._invoice_agent.pending_pdf, None
+        return pdf
 
     def reset(self) -> None:
         """Reset all agent conversation histories."""

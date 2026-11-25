@@ -58,6 +58,21 @@ class Config:
 
     # Database
     DB_PATH: str = _resolve(os.getenv("DB_PATH", "muse.db"))
+    # Sample gigs, invoices, contacts, emails and voice samples for demos and
+    # evals. Turn off for a real artist's data.
+    SEED_DEMO_DATA: bool = os.getenv("MUSE_SEED_DEMO_DATA", "1") == "1"
+
+    # Deployment
+    # One artist per deployment (Phase 0): keep the Google token in a file on
+    # the server's disk even in cloud mode, so it survives browser sessions.
+    SINGLE_USER: bool = os.getenv("MUSE_SINGLE_USER", "0") == "1"
+    # If set, the web UI asks for this password before showing anything.
+    APP_PASSWORD: str = os.getenv("MUSE_APP_PASSWORD", "")
+    # Tester round: several invited people share one deployment. Each browser
+    # session gets its own copy of the sample data, which clears on refresh.
+    # Google sign-in and the Settings panel are off, so nobody can reach a
+    # real account or change settings for everyone.
+    TESTER_MODE: bool = os.getenv("MUSE_TESTER_MODE", "0") == "1"
 
 
 config = Config()

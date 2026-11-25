@@ -44,8 +44,8 @@ except ImportError:
 class InvoiceTools:
     """Handles invoice CRUD and PDF generation for the Invoice Agent."""
 
-    def __init__(self):
-        self.db_path = config.DB_PATH
+    def __init__(self, db_path: str | None = None):
+        self.db_path = db_path or config.DB_PATH
         self.output_dir = config.INVOICE_OUTPUT_DIR
         if not is_cloud():
             os.makedirs(self.output_dir, exist_ok=True)
@@ -88,7 +88,8 @@ class InvoiceTools:
         """)
         conn.commit()
         conn.close()
-        self._seed_sample_invoices()
+        if config.SEED_DEMO_DATA:
+            self._seed_sample_invoices()
         logger.info(f"Invoice database initialized at {self.db_path}")
 
     def _seed_sample_invoices(self) -> None:

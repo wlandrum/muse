@@ -28,8 +28,8 @@ logger = logging.getLogger(__name__)
 class CRMTools:
     """Handles contact and interaction CRUD for the CRM Agent."""
 
-    def __init__(self):
-        self.db_path = config.DB_PATH
+    def __init__(self, db_path: str | None = None):
+        self.db_path = db_path or config.DB_PATH
         self._init_db()
 
     # ── Database Setup ──────────────────────────────────────────────
@@ -73,7 +73,8 @@ class CRMTools:
         """)
         conn.commit()
         conn.close()
-        self._seed_sample_data()
+        if config.SEED_DEMO_DATA:
+            self._seed_sample_data()
         logger.info(f"CRM database initialized at {self.db_path}")
 
     def _seed_sample_data(self) -> None:

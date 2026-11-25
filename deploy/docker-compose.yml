@@ -1,0 +1,33 @@
+# Phase 0: one artist, one VM. Caddy terminates HTTPS for ${MUSE_DOMAIN} (the
+# app) and ${MUSE_SITE_DOMAIN} (home page and privacy policy from ./site);
+# certificates are issued automatically once DNS points at the VM.
+services:
+  muse:
+    build: ..
+    restart: unless-stopped
+    env_file: muse.env
+    environment:
+      STREAMLIT_URL: https://${MUSE_DOMAIN}
+      MUSE_SINGLE_USER: "1"
+      MUSE_SEED_DEMO_DATA: "0"
+    volumes:
+      - /var/lib/muse:/data
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      MUSE_DOMAIN: ${MUSE_DOMAIN}
+      MUSE_SITE_DOMAIN: ${MUSE_SITE_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv/site:ro
+      - caddy_data:/data
+    depends_on:
+      - muse
+
+volumes:
+  caddy_data:

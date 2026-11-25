@@ -36,10 +36,11 @@ MAX_BODY_LENGTH = 10000
 class EmailTools:
     """Wraps Gmail API (or local fallback) for the Email Agent."""
 
-    def __init__(self):
+    def __init__(self, db_path: str | None = None):
         self.service = None
-        self.use_local = not GOOGLE_AVAILABLE
-        self.db_path = config.DB_PATH
+        # Tester mode never touches a Google account, even one saved on disk.
+        self.use_local = not GOOGLE_AVAILABLE or config.TESTER_MODE
+        self.db_path = db_path or config.DB_PATH
 
         if not self.use_local:
             try:
@@ -105,7 +106,8 @@ class EmailTools:
         """)
         conn.commit()
         conn.close()
-        self._seed_sample_emails()
+        if config.SEED_DEMO_DATA:
+            self._seed_sample_emails()
         logger.info(f"Local email store initialized at {self.db_path}")
 
     def _seed_sample_emails(self) -> None:
