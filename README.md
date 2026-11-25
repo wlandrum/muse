@@ -96,7 +96,7 @@ To let a few invited artists try Muse on one shared deployment, turn on tester m
 | `MUSE_SEED_DEMO_DATA` | `1` (default) | Testers start with sample gigs, invoices, contacts and emails. |
 | `MUSE_SINGLE_USER` | unset | Not for tester rounds: it shares one Google connection with everyone. |
 
-On Streamlit Community Cloud, put `ANTHROPIC_API_KEY`, `STREAMLIT_URL`, `MUSE_TESTER_MODE` and `MUSE_APP_PASSWORD` in the app's secrets and leave out the `[google_oauth]` section. Don't turn tester mode on in the Phase 0 deployment ([deploy/README.md](deploy/README.md)): that one keeps a single artist's real data.
+On the Phase 0 VM ([deploy/README.md](deploy/README.md)), layer `deploy/docker-compose.tester.yml` over the usual compose file; the steps are under *Tester round* there. On Streamlit Community Cloud, put `ANTHROPIC_API_KEY`, `STREAMLIT_URL`, `MUSE_TESTER_MODE` and `MUSE_APP_PASSWORD` in the app's secrets and leave out the `[google_oauth]` section.
 
 ## Example Interactions
 

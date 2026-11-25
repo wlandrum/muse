@@ -104,6 +104,23 @@ Open `https://app.<your-domain>`, enter the password, click **Connect Google**
 and sign in with the artist's account. Then try: "What's on my schedule this
 week?" and "Check my inbox".
 
+## Tester round
+
+To let a few invited artists try Muse here with sample data, deploy with the
+tester override. Each browser session gets its own copy of the sample data,
+which clears on refresh; Google sign-in and Settings are off; the password
+still gates everything. Nothing in `/var/lib/muse` is read or changed.
+
+```bash
+gcloud compute ssh muse --zone us-east1-b -- 'cd /opt/muse/deploy &&
+  sudo git -C /opt/muse pull &&
+  sudo docker compose -f docker-compose.yml -f docker-compose.tester.yml up -d --build'
+```
+
+Every tester message uses the API key in `muse.env`. To go back to the
+single-artist setup, run `sudo docker compose up -d` in `/opt/muse/deploy`
+without the tester file.
+
 ## Day to day
 
 | Task | Command (on the VM, in `/opt/muse/deploy`) |
