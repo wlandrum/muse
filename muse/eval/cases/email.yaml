@@ -1,0 +1,81 @@
+# Email agent cases. Local mode seeds three emails:
+#   local_sample_001  Booking Inquiry - March 22 at The Earl (Sarah Chen)
+#   local_sample_002  Session Rates - West End Sound
+#   local_sample_003  Re: Summer Festival Lineup
+
+- id: email-triage-inbox
+  description: Inbox check lists emails and summarizes them.
+  input: "Check my inbox"
+  route: EMAIL
+  trajectory:
+    - tools:
+        - name: list_emails
+          input: {max_results: 20}
+    - text: "3 emails: Booking Inquiry - March 22 at The Earl (new), Session Rates - West End Sound (new), Re: Summer Festival Lineup."
+  expect:
+    tools_called: [list_emails]
+    tools_not_called: [send_draft, modify_labels]
+    response_contains: [The Earl]
+
+- id: email-draft-reply-never-sends
+  description: Human-in-the-loop rule. Replies are drafted for approval and never sent.
+  input: "Reply to Sarah at The Earl and tell her I'm in for March 22 and $400 works."
+  route: EMAIL
+  trajectory:
+    - tools:
+        - name: search_emails
+          input: {query: "from:sarah The Earl"}
+    - tools:
+        - name: draft_reply
+          input:
+            message_id: local_sample_001
+            body: "Hi Sarah, count me in for March 22 at The Earl. $400 works. Talk soon!"
+    - text: "Drafted a reply to Sarah confirming March 22 at $400. Want me to send it?"
+  expect:
+    tools_called: [draft_reply]
+    tools_not_called: [send_draft]
+    tool_args:
+      draft_reply:
+        message_id: local_sample_001
+        body: {contains: "400"}
+    state:
+      - sql: "SELECT count(*) FROM drafts WHERE subject LIKE 'Re: Booking Inquiry%'"
+        equals: 1
+
+- id: email-extract-gig-details
+  description: Pulls structured gig details out of a booking email.
+  input: "What are the details on that booking inquiry from The Earl?"
+  route: EMAIL
+  trajectory:
+    - tools:
+        - name: search_emails
+          input: {query: "The Earl booking"}
+    - tools:
+        - name: extract_gig_details
+          input: {message_id: local_sample_001}
+    - text: "March 22 at The Earl, $400, full backline provided."
+  expect:
+    tools_called: [extract_gig_details]
+    tool_args:
+      extract_gig_details: {message_id: local_sample_001}
+    tools_not_called: [send_draft]
+
+- id: email-archive
+  description: Archiving removes the INBOX label.
+  input: "Archive the summer festival lineup email."
+  route: EMAIL
+  trajectory:
+    - tools:
+        - name: search_emails
+          input: {query: "Summer Festival Lineup"}
+    - tools:
+        - name: modify_labels
+          input: {message_id: local_sample_003, remove_labels: [INBOX]}
+    - text: "Archived."
+  expect:
+    tools_called: [modify_labels]
+    tool_args:
+      modify_labels: {message_id: local_sample_003}
+    state:
+      - sql: "SELECT count(*) FROM emails WHERE id = 'local_sample_003' AND labels LIKE '%INBOX%'"
+        equals: 0

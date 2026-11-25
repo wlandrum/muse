@@ -1,0 +1,53 @@
+# Router-focused cases: messages whose category is easy to get wrong.
+# In mock mode these exercise the fallback path and agent wiring; in live mode
+# they measure the router itself.
+
+- id: route-greeting
+  description: Small talk goes to GENERAL and gets the capabilities menu.
+  input: "hey muse, what can you do?"
+  route: GENERAL
+  expect:
+    tools_called: []
+    response_contains: [Calendar, Invoicing]
+
+- id: route-payment-question-is-invoice
+  description: "'Did X pay me' mentions a studio but is a billing question."
+  input: "Did West End Sound ever pay me for the January session?"
+  route: INVOICE
+  trajectory:
+    - tools:
+        - name: list_invoices
+          input: {}
+    - text: "I don't see an invoice for West End Sound in January. Want me to create one?"
+  expect:
+    tools_called: [list_invoices]
+    tools_not_called: [mark_paid]
+
+- id: route-who-is-contact-is-crm
+  description: "'Who is the booker at X' is a CRM question, not calendar."
+  input: "Who's the booker at Eddie's Attic and how do I reach them?"
+  route: CRM
+  trajectory:
+    - tools:
+        - name: search_contacts
+          input: {query: "Eddie's Attic"}
+    - text: "Eddie's Attic isn't in your contacts yet. Want to add it?"
+  expect:
+    tools_called: [search_contacts]
+    tools_not_called: [add_contact]
+
+- id: route-promo-post-is-social
+  description: Promo content mentioning a gig date goes to SOCIAL, not CALENDAR.
+  input: "Write a caption hyping my December 12 show at The Earl."
+  route: SOCIAL
+  trajectory:
+    - tools:
+        - name: get_voice_context
+          input: {query: "gig promo The Earl"}
+    - tools:
+        - name: create_post_draft
+          input: {caption: "ATLANTA. Dec 12. The Earl. Be there.", post_type: feed}
+    - text: "Caption drafted."
+  expect:
+    tools_called: [create_post_draft]
+    tools_not_called: [create_event]

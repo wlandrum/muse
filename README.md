@@ -32,6 +32,7 @@ User ──▶ Orchestrator ──▶ Calendar Agent  ──▶ Google Calendar 
 | 📧 Email | ✅ Active | Inbox triage, reply drafting, gig detail extraction, search, archive/star/label |
 | 💰 Invoice | ✅ Active | Create invoices, PDF generation, payment tracking, income summaries |
 | 📱 Social | ✅ Active | RAG voice matching, caption generation, hashtag suggestions, post draft management |
+| 👥 CRM | ✅ Active | Contacts, meeting notes, follow-ups, relationship summaries across invoices and gigs |
 
 ## Quick Start
 
@@ -77,7 +78,15 @@ No credentials needed — runs with ChromaDB for voice matching and SQLite for p
 streamlit run ui/app.py
 ```
 
-### 8. (Optional) Connect Google Calendar
+### 8. Run the evals
+```bash
+pip install -r requirements-dev.txt
+python -m muse.eval        # scenario evals for every agent — offline, no API calls
+pytest                     # same evals plus grader tests
+```
+See [muse/eval/README.md](muse/eval/README.md) for the case format and live mode.
+
+### 9. (Optional) Connect Google Calendar
 1. Go to [Google Cloud Console](https://console.cloud.google.com/)
 2. Create a project and enable the Google Calendar API
 3. Create OAuth 2.0 credentials (Desktop application)
@@ -85,7 +94,7 @@ streamlit run ui/app.py
 5. Add your Google account as a test user in the OAuth consent screen
 6. On first run, Muse will open a browser for OAuth consent
 
-### 9. (Optional) Connect Gmail
+### 10. (Optional) Connect Gmail
 1. In the same Google Cloud Console project, enable the **Gmail API**
 2. The same `credentials.json` file works for both Calendar and Gmail
 3. Add the `gmail.modify` scope to your OAuth consent screen

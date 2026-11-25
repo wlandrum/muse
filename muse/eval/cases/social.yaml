@@ -1,0 +1,58 @@
+# Social agent cases. Local mode seeds 3 posts and 5 voice samples.
+
+- id: social-draft-gig-post
+  description: Retrieves voice samples before writing, then saves a draft (never posts).
+  input: "Draft an Instagram post about my show at Terminal West this Friday."
+  route: SOCIAL
+  trajectory:
+    - tools:
+        - name: get_voice_context
+          input: {query: "gig promo show at Terminal West", category: gig_promo}
+    - tools:
+        - name: generate_hashtags
+          input: {topic: "live show Terminal West Atlanta"}
+    - tools:
+        - name: create_post_draft
+          input:
+            caption: "ATLANTA. Friday. Terminal West. Full band, new songs. Doors at 8. Link in bio."
+            post_type: feed
+            hashtags: ["#livemusic", "#atlantamusic", "#terminalwest"]
+            voice_category: gig_promo
+    - text: "Draft saved. Want any edits?"
+  expect:
+    tools_called: [get_voice_context, create_post_draft]
+    tool_args:
+      create_post_draft:
+        caption: {contains: Terminal West}
+    state:
+      - sql: "SELECT count(*) FROM social_posts WHERE caption LIKE '%Terminal West%' AND status = 'draft'"
+        equals: 1
+
+- id: social-add-voice-sample
+  description: Saving an example caption adds it to the voice library with a category.
+  input: "Save this as a voice sample: 'Late night in the studio again. This bridge finally clicked.'"
+  route: SOCIAL
+  trajectory:
+    - tools:
+        - name: add_voice_sample
+          input: {text: "Late night in the studio again. This bridge finally clicked.", category: behind_the_scenes}
+    - text: "Saved to your voice library under behind_the_scenes."
+  expect:
+    tools_called: [add_voice_sample]
+    tool_args:
+      add_voice_sample:
+        text: {contains: bridge finally clicked}
+        category: {one_of: [behind_the_scenes, personal, other]}
+
+- id: social-list-drafts
+  description: Listing drafts filters by status and changes nothing.
+  input: "What post drafts do I have?"
+  route: SOCIAL
+  trajectory:
+    - tools:
+        - name: list_posts
+          input: {status: draft}
+    - text: "Here are your drafts."
+  expect:
+    tools_called: [list_posts]
+    tools_not_called: [create_post_draft, update_post, delete_post]

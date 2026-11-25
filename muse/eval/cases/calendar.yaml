@@ -1,0 +1,124 @@
+# Calendar agent cases. See muse/eval/README.md for the case format.
+
+- id: calendar-book-session
+  description: Natural-language session booking checks conflicts first, then creates the event with pay captured.
+  input: "I got offered a session at West End Sound on Thursday December 3, 2026, noon to 5pm, $500. Engineer is Miles."
+  route: CALENDAR
+  trajectory:
+    - tools:
+        - name: check_conflicts
+          input: {start_time: "2026-12-03T12:00:00", end_time: "2026-12-03T17:00:00"}
+    - tools:
+        - name: create_event
+          input:
+            title: Session at West End Sound
+            event_type: session
+            venue: West End Sound
+            start_time: "2026-12-03T12:00:00"
+            end_time: "2026-12-03T17:00:00"
+            pay: 500
+            contact_name: Miles
+    - text: "You're free. Booked: Session at West End Sound, Thu Dec 3, 12:00 PM - 5:00 PM, $500, contact Miles."
+  expect:
+    tools_called: [check_conflicts, create_event]
+    tool_args:
+      create_event:
+        event_type: session
+        pay: 500
+        start_time: {startswith: "2026-12-03T12:00"}
+        end_time: {startswith: "2026-12-03T17:00"}
+        venue: {contains: West End}
+    state:
+      - sql: "SELECT count(*) FROM events WHERE event_type = 'session' AND pay = 500"
+        equals: 1
+
+- id: calendar-conflict-blocks-create
+  description: When the new event overlaps an existing gig, the agent surfaces the conflict instead of booking.
+  input: "Book a rehearsal at Rock Box on December 5, 2026 from 8pm to 10pm."
+  route: CALENDAR
+  setup:
+    - agent: CALENDAR
+      tool: create_event
+      input:
+        title: Live at The Earl
+        event_type: gig
+        venue: The Earl
+        start_time: "2026-12-05T19:00:00"
+        end_time: "2026-12-05T23:00:00"
+        pay: 400
+  trajectory:
+    - tools:
+        - name: check_conflicts
+          input: {start_time: "2026-12-05T20:00:00", end_time: "2026-12-05T22:00:00"}
+    - text: "Heads up: that conflicts with your gig at The Earl (7-11 PM). Want to pick another time, or book it anyway?"
+  expect:
+    tools_called: [check_conflicts]
+    tools_not_called: [create_event]
+    state:
+      - sql: "SELECT count(*) FROM events"
+        equals: 1
+    response_contains: [The Earl]
+
+- id: calendar-list-week
+  description: Schedule questions list events over the right range.
+  input: "What's on my schedule the week of December 7, 2026?"
+  route: CALENDAR
+  setup:
+    - agent: CALENDAR
+      tool: create_event
+      input: {title: Rehearsal with the band, event_type: rehearsal, venue: Rock Box, start_time: "2026-12-08T18:00:00", end_time: "2026-12-08T20:30:00"}
+    - agent: CALENDAR
+      tool: create_event
+      input: {title: Live at The Earl, event_type: gig, venue: The Earl, start_time: "2026-12-12T21:00:00", end_time: "2026-12-13T01:00:00", pay: 400}
+  trajectory:
+    - tools:
+        - name: list_events
+          input: {start_date: "2026-12-07", end_date: "2026-12-13"}
+    - text: "Tue Dec 8: Rehearsal at Rock Box, 6:00-8:30 PM. Sat Dec 12: Live at The Earl, 9:00 PM."
+  expect:
+    tools_called: [list_events]
+    tool_args:
+      list_events:
+        start_date: {startswith: "2026-12-0"}
+    tools_not_called: [create_event, delete_event, update_event]
+    response_contains: [Rock Box, The Earl]
+
+- id: calendar-cancel-gig
+  description: Cancelling looks the event up, then deletes it by id.
+  input: "The Earl show on December 12, 2026 got cancelled. Take it off my calendar."
+  route: CALENDAR
+  setup:
+    - agent: CALENDAR
+      tool: create_event
+      input: {title: Live at The Earl, event_type: gig, venue: The Earl, start_time: "2026-12-12T21:00:00", end_time: "2026-12-13T01:00:00", pay: 400}
+      save_as: gig
+  trajectory:
+    - tools:
+        - name: list_events
+          input: {start_date: "2026-12-12", end_date: "2026-12-13"}
+    - tools:
+        - name: delete_event
+          input: {event_id: "${gig.event.id}"}
+    - text: "Done. Live at The Earl on Dec 12 is cancelled."
+  expect:
+    tools_called: [delete_event]
+    tool_args:
+      delete_event: {event_id: {startswith: local_}}
+    state:
+      - sql: "SELECT count(*) FROM events WHERE venue = 'The Earl' AND status != 'cancelled'"
+        equals: 0
+
+- id: calendar-find-availability
+  description: Availability questions use find_availability with the requested duration.
+  input: "I need a 3 hour block for a rehearsal sometime December 14-16, 2026. When am I free?"
+  route: CALENDAR
+  trajectory:
+    - tools:
+        - name: find_availability
+          input: {search_start: "2026-12-14T09:00:00", search_end: "2026-12-16T22:00:00", duration_hours: 3}
+    - text: "You're wide open Dec 14-16. Want me to book Monday Dec 14, 6-9 PM?"
+  expect:
+    tools_called: [find_availability]
+    tool_args:
+      find_availability: {duration_hours: 3}
+    tools_not_called: [create_event]
