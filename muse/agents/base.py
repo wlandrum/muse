@@ -28,6 +28,7 @@ TRUNCATED_REPLY = (
     "Could you break the request into smaller pieces?"
 )
 MAX_ROUNDS_REPLY = "I'm having trouble completing this request. Could you try rephrasing?"
+EMPTY_REPLY = "Sorry, I couldn't put a reply together for that. Could you try asking another way?"
 
 
 class BaseAgent(ABC):
@@ -47,9 +48,12 @@ class BaseAgent(ABC):
         self,
         client: Anthropic | None = None,
         model: str | None = None,
+        db_path: str | None = None,
     ):
         self.client = client or Anthropic(api_key=config.ANTHROPIC_API_KEY)
         self.model = model or config.MODEL
+        # Where this agent's tools keep their data. None means config.DB_PATH.
+        self.db_path = db_path
         self.conversation_history: list[dict] = []
         self.max_tool_rounds = 10  # safety limit to prevent infinite loops
 
@@ -108,8 +112,12 @@ class BaseAgent(ABC):
     def run(self, user_message: str) -> str:
         """Execute the full agent loop for a user message.
 
-        Returns the agent's final text response.
+        Returns the agent's final text response. If a request to the API
+        fails, the unfinished turn is taken back out of the history and the
+        error is raised, so the next message starts from the last complete
+        turn instead of a dangling question or tool exchange.
         """
+        start = len(self.conversation_history)
         self.conversation_history.append({
             "role": "user",
             "content": [
@@ -117,7 +125,13 @@ class BaseAgent(ABC):
                 {"type": "text", "text": self.turn_context()},
             ],
         })
+        try:
+            return self._loop()
+        except Exception:
+            del self.conversation_history[start:]
+            raise
 
+    def _loop(self) -> str:
         for round_num in range(self.max_tool_rounds):
             logger.info(f"[{self.name}] Round {round_num + 1}")
             response = self._create()
@@ -171,10 +185,19 @@ class BaseAgent(ABC):
                 continue  # next round
 
             logger.info(f"[{self.name}] Completed in {round_num + 1} round(s)")
-            return "\n".join(b.text for b in response.content if b.type == "text")
+            reply = "\n".join(b.text for b in response.content if b.type == "text").strip()
+            if not reply:
+                logger.warning(f"[{self.name}] Final turn had no text")
+                if not response.content:
+                    # An empty assistant turn would be rejected next time.
+                    self.conversation_history[-1] = {"role": "assistant", "content": EMPTY_REPLY}
+                return EMPTY_REPLY
+            return reply
 
-        # If we hit the safety limit
+        # If we hit the safety limit, close the turn so the history ends on
+        # an assistant reply like every other turn.
         logger.warning(f"[{self.name}] Hit max tool rounds ({self.max_tool_rounds})")
+        self.conversation_history.append({"role": "assistant", "content": MAX_ROUNDS_REPLY})
         return MAX_ROUNDS_REPLY
 
     def reset(self) -> None:

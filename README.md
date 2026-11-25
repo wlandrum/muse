@@ -85,6 +85,19 @@ See [muse/eval/README.md](muse/eval/README.md) for the case format and live mode
 4. On first run of the Email Agent, Muse will open a browser for Gmail OAuth consent
 5. A separate token (`token_gmail.json`) is created for Gmail to avoid scope conflicts with Calendar
 
+## Hosting a Tester Round
+
+To let a few invited artists try Muse on one shared deployment, turn on tester mode:
+
+| Setting | Value | Why |
+|---|---|---|
+| `MUSE_TESTER_MODE` | `1` | Each browser session gets its own copy of the sample data, which clears on refresh. Google sign-in and the Settings panel are off. |
+| `MUSE_APP_PASSWORD` | set | Only people with the password can chat. Every message uses your API key. |
+| `MUSE_SEED_DEMO_DATA` | `1` (default) | Testers start with sample gigs, invoices, contacts and emails. |
+| `MUSE_SINGLE_USER` | unset | Not for tester rounds: it shares one Google connection with everyone. |
+
+On Streamlit Community Cloud, put `ANTHROPIC_API_KEY`, `STREAMLIT_URL`, `MUSE_TESTER_MODE` and `MUSE_APP_PASSWORD` in the app's secrets and leave out the `[google_oauth]` section. Don't turn tester mode on in the Phase 0 deployment ([deploy/README.md](deploy/README.md)): that one keeps a single artist's real data.
+
 ## Example Interactions
 
 ### Calendar Agent

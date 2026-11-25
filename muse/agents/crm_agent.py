@@ -289,7 +289,7 @@ class CRMAgent(BaseAgent):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.crm = CRMTools()
+        self.crm = CRMTools(db_path=self.db_path)
 
     @property
     def name(self) -> str:
