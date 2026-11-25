@@ -130,3 +130,24 @@ def test_naive_times_are_artist_local_for_google(monkeypatch):
     assert _to_rfc3339("2026-12-03T12:00:00") == "2026-12-03T12:00:00-05:00"
     assert _to_rfc3339("2026-07-03T12:00:00") == "2026-07-03T12:00:00-04:00"
     assert _to_rfc3339("2026-12-03T17:00:00Z") == "2026-12-03T17:00:00+00:00"
+
+
+# ── Mixed time formats (models may send UTC offsets) ─────────────────
+
+def test_offset_and_naive_times_compare_correctly(calendar, monkeypatch):
+    from muse.config import config
+    monkeypatch.setattr(config, "DEFAULT_TIMEZONE", "America/New_York")
+    make(calendar, "2026-12-05T19:00:00-05:00", "2026-12-05T23:00:00-05:00")
+    assert len(calendar.check_conflicts("2026-12-05T20:00:00", "2026-12-05T21:00:00")) == 1
+    assert len(calendar.check_conflicts("2026-12-06T01:00:00Z", "2026-12-06T02:00:00Z")) == 1  # 8-9 PM local
+    assert calendar.check_conflicts("2026-12-05T23:00:00-05:00", "2026-12-06T01:00:00-05:00") == []
+    stored = calendar.list_events("2026-12-05", "2026-12-05")[0]
+    assert stored["start_time"] == "2026-12-05T19:00:00"
+
+
+def test_update_normalizes_times(calendar, monkeypatch):
+    from muse.config import config
+    monkeypatch.setattr(config, "DEFAULT_TIMEZONE", "America/New_York")
+    event = make(calendar, "2026-12-05T19:00:00", "2026-12-05T23:00:00")
+    calendar.update_event(event["id"], {"start_time": "2026-12-06T00:30:00Z"})
+    assert calendar.list_events("2026-12-05", "2026-12-05")[0]["start_time"] == "2026-12-05T19:30:00"

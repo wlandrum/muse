@@ -51,3 +51,19 @@
   expect:
     tools_called: [create_post_draft]
     tools_not_called: [create_event]
+
+# ── Router-only cases ────────────────────────────────────────────────
+# Held-out phrasings checked only by `python -m muse.eval --router-only`
+# (no agent trajectory). Added with the Haiku 5.5 router, written before
+# the router prompt was tuned against them.
+
+- {id: router-email-what-did-she-say, router_only: true, route: EMAIL, input: "Sarah from The Earl emailed about March, what did she say?"}
+- {id: router-email-any-replies, router_only: true, route: EMAIL, input: "Did anyone reply about the festival lineup?"}
+- {id: router-calendar-block-time, router_only: true, route: CALENDAR, input: "Block off next Tuesday afternoon for writing"}
+- {id: router-calendar-squeeze-lesson, router_only: true, route: CALENDAR, input: "Can I squeeze in a lesson Thursday at 4?"}
+- {id: router-invoice-send-bill, router_only: true, route: INVOICE, input: "Send West End Sound a bill for 6 hours at $50/hr"}
+- {id: router-invoice-who-owes, router_only: true, route: INVOICE, input: "Who still owes me money?"}
+- {id: router-social-caption-ideas, router_only: true, route: SOCIAL, input: "Give me three caption ideas for a studio photo"}
+- {id: router-crm-add-number, router_only: true, route: CRM, input: "Add Miles from West End Sound to my contacts, his number is 404-555-0101"}
+- {id: router-crm-last-talked, router_only: true, route: CRM, input: "When did I last talk to Dave Promotions?"}
+- {id: router-general-thanks, router_only: true, route: GENERAL, input: "thanks!"}

@@ -7,7 +7,6 @@ and cross-references invoices and calendar events for full context.
 from __future__ import annotations
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from muse.agents.base import BaseAgent
@@ -51,7 +50,7 @@ Good CRM means knowing the history:
 
 ## Important
 
-- Today's date is {datetime.now().strftime("%A, %B %d, %Y")}.
+- The current date and time are given at the end of each user message.
 - The artist's name is {config.ARTIST_NAME}.
 - Be concise. Musicians are busy. Don't over-explain.
 - When searching, try to find the right contact by name before asking the artist for an ID.

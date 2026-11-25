@@ -68,6 +68,22 @@ def _parse_local(value: str) -> datetime:
     return dt
 
 
+def _local_dt(dt: datetime | None) -> str | None:
+    """Local-mode storage format: naive ISO time in the artist's timezone.
+
+    Times are compared as strings in SQLite, so every stored value and query
+    bound must share one format (models may or may not send a UTC offset).
+    """
+    if dt is None:
+        return None
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(ZoneInfo(config.DEFAULT_TIMEZONE)).replace(tzinfo=None)
+    return dt.isoformat()
+
+
+TIME_FIELDS = {"start_time", "end_time", "load_in_time", "soundcheck_time", "set_time"}
+
+
 class CalendarTools:
     """Wraps Google Calendar API (or local fallback) for the Calendar Agent."""
 
@@ -250,11 +266,11 @@ class CalendarTools:
                 event.event_type.value,
                 event.venue,
                 event.address,
-                event.start_time.isoformat(),
-                event.end_time.isoformat(),
-                event.load_in_time.isoformat() if event.load_in_time else None,
-                event.soundcheck_time.isoformat() if event.soundcheck_time else None,
-                event.set_time.isoformat() if event.set_time else None,
+                _local_dt(event.start_time),
+                _local_dt(event.end_time),
+                _local_dt(event.load_in_time),
+                _local_dt(event.soundcheck_time),
+                _local_dt(event.set_time),
                 event.pay,
                 event.pay_notes,
                 event.contact_name,
@@ -280,6 +296,7 @@ class CalendarTools:
         # Return every event that overlaps the window (same semantics as
         # Google's timeMin/timeMax), not just those starting inside it.
         start_date, end_date = _window_bounds(start_date, end_date)
+        start_date, end_date = _local_dt(_parse_local(start_date)), _local_dt(_parse_local(end_date))
         query = "SELECT * FROM events WHERE start_time < ? AND end_time > ?"
         params: list = [end_date, start_date]
 
@@ -295,6 +312,9 @@ class CalendarTools:
 
     def _local_update(self, event_id: str, updates: dict) -> dict:
         filtered = {k: v for k, v in updates.items() if k in UPDATABLE_FIELDS}
+        for key in TIME_FIELDS & filtered.keys():
+            if filtered[key]:
+                filtered[key] = _local_dt(_parse_local(filtered[key]))
         if not filtered:
             return {"error": f"No valid fields to update. Allowed: {', '.join(sorted(UPDATABLE_FIELDS))}"}
 

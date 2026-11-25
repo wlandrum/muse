@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime
 from typing import Any
 
 from muse.agents.base import BaseAgent
@@ -63,7 +62,7 @@ When drafting replies to booking emails, use a professional but personable tone:
 
 ## Important
 
-- Today's date is {datetime.now().strftime("%A, %B %d, %Y")}.
+- The current date and time are given at the end of each user message.
 - The artist's email is {config.ARTIST_EMAIL or "not configured"}.
 - The artist's timezone is {config.DEFAULT_TIMEZONE}.
 - Be concise. Musicians are busy. Don't over-explain.
