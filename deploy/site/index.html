@@ -5,23 +5,459 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Muse</title>
 <meta name="description" content="Muse is an AI manager for independent musicians: calendar, email, invoices, social posts and contacts in one place.">
-<link rel="stylesheet" href="/style.css">
+<style>
+/* Layout: a gig "day sheet" leads the hero; sections run as one narrow column of plain bands, with the tape label as the single flourish. */
+:root {
+  --bg: #F3F4F8;
+  --surface: #FFFFFF;
+  --ink: #151829;
+  --muted: #586079;
+  --line: #D8DCE7;
+  --accent: #2B44E0;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #E6E9FD;
+  --tape: #FFC93E;
+  --tape-ink: #1B1A12;
+  --warn-bg: #FFF5D9;
+  --warn-line: #E9B42C;
+  --font-display: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1121; --surface: #181B30; --ink: #EDEFF7; --muted: #A2A8C1; --line: #2B2F4B;
+    --accent: #8191FF; --accent-ink: #0F1121; --accent-soft: #232852;
+    --tape: #FFC93E; --tape-ink: #1B1A12; --warn-bg: #2E2712; --warn-line: #B98D1E;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1121; --surface: #181B30; --ink: #EDEFF7; --muted: #A2A8C1; --line: #2B2F4B;
+  --accent: #8191FF; --accent-ink: #0F1121; --accent-soft: #232852;
+  --tape: #FFC93E; --tape-ink: #1B1A12; --warn-bg: #2E2712; --warn-line: #B98D1E;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.6;
+}
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--font-display); line-height: 1.08; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(1.8rem, 4vw, 2.6rem); font-weight: 800; letter-spacing: -0.01em; }
+h3 { font-size: 1.15rem; font-weight: 700; }
+p { margin: 0; }
+.eyebrow {
+  font-family: var(--font-mono); font-size: 0.78rem; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--muted);
+}
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 999px;
+  padding: 12px 22px; font: 600 1rem var(--font-body); text-decoration: none; cursor: pointer;
+}
+.btn:hover { filter: brightness(1.08); }
+
+/* Nav */
+nav { padding-block: 18px; }
+nav .wrap { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.wordmark { font-family: var(--font-display); font-weight: 800; font-size: 1.5rem; color: var(--ink); text-decoration: none; letter-spacing: -0.02em; }
+.wordmark span { color: var(--accent); }
+.navlinks { display: flex; align-items: center; gap: 22px; }
+.navlinks a:not(.btn) { color: var(--muted); text-decoration: none; font-weight: 500; }
+.navlinks a:not(.btn):hover { color: var(--ink); }
+.navlinks .btn { padding: 9px 16px; font-size: 0.92rem; }
+@media (max-width: 720px) { .navlinks a:not(.btn) { display: none; } }
+
+/* Hero */
+.hero { padding-block: 40px 72px; }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; }
+.hero-copy { display: flex; flex-direction: column; gap: 22px; min-width: 0; }
+.hero h1 { font-size: clamp(2.5rem, 6vw, 4.2rem); font-weight: 800; letter-spacing: -0.025em; }
+.hero h1 em { font-style: normal; color: var(--accent); }
+.lede { font-size: 1.15rem; color: var(--muted); max-width: 34em; }
+.status {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-mono); font-size: 0.8rem; color: var(--ink);
+  background: var(--accent-soft); border-radius: 999px; padding: 6px 12px;
+}
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.hero-actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.hero-actions .quiet { color: var(--muted); font-size: 0.95rem; }
+.btn-ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+
+/* Day sheet demo */
+.demo { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.offer {
+  align-self: flex-start; max-width: 88%;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px 16px 16px 4px;
+  padding: 12px 16px; font-size: 0.95rem;
+}
+.offer small { display: block; font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); margin-bottom: 4px; letter-spacing: 0.04em; }
+.sheet {
+  position: relative; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 34px 22px 20px;
+  box-shadow: 0 18px 40px -24px rgba(20, 24, 60, 0.35);
+}
+.tape {
+  position: absolute; top: -14px; left: 22px; transform: rotate(-2.5deg);
+  background: var(--tape); color: var(--tape-ink);
+  font-family: var(--font-mono); font-weight: 600; font-size: 0.78rem; letter-spacing: 0.12em;
+  padding: 6px 14px; box-shadow: 0 2px 0 rgba(0,0,0,0.08);
+  clip-path: polygon(2% 0, 100% 4%, 98% 100%, 0 94%);
+}
+.sheet-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.sheet-head h3 { font-size: 1.35rem; }
+.sheet-head .date { font-family: var(--font-mono); font-size: 0.85rem; color: var(--muted); }
+.runs { list-style: none; margin: 0; padding: 0; border-top: 1px dashed var(--line); }
+.runs li {
+  display: grid; grid-template-columns: 7.5em 1fr; gap: 12px;
+  padding: 9px 0; border-bottom: 1px dashed var(--line); font-size: 0.95rem;
+}
+.runs .t { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+.runs .k { color: var(--muted); }
+.chip {
+  display: inline-block; font-family: var(--font-mono); font-size: 0.72rem; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--warn-line);
+  color: var(--ink); background: var(--warn-bg); vertical-align: 2px; margin-left: 6px;
+}
+.clash {
+  margin-top: 16px; background: var(--warn-bg); border: 1px solid var(--warn-line);
+  border-radius: 8px; padding: 12px 14px; font-size: 0.93rem;
+}
+.clash strong { display: block; margin-bottom: 2px; }
+.choices { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.choices span {
+  font-size: 0.82rem; font-weight: 500; padding: 5px 11px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface);
+}
+.example-note { font-family: var(--font-mono); font-size: 0.72rem; color: var(--muted); text-align: right; }
+
+/* Sections */
+section { padding-block: 72px; }
+section + section { border-top: 1px solid var(--line); }
+.section-head { display: flex; flex-direction: column; gap: 12px; max-width: 40em; margin-bottom: 36px; }
+.section-head p { color: var(--muted); font-size: 1.08rem; }
+
+.problem .wrap { display: grid; grid-template-columns: 1fr 1.2fr; gap: 48px; align-items: start; }
+.problem p { color: var(--muted); font-size: 1.1rem; max-width: 34em; }
+.problem p + p { margin-top: 14px; }
+.chores { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 10px; }
+.chores li {
+  font-family: var(--font-mono); font-size: 0.85rem; padding: 7px 12px;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--surface);
+}
+
+.steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 28px; counter-reset: step; }
+.steps li { display: flex; flex-direction: column; gap: 10px; min-width: 0; counter-increment: step; }
+.steps li::before {
+  content: counter(step); font-family: var(--font-display); font-weight: 800; font-size: 1.1rem;
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-ink);
+}
+.steps p { color: var(--muted); }
+
+.features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.feature { padding: 24px 22px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.feature .tag { font-family: var(--font-mono); font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent); }
+.feature p { color: var(--muted); font-size: 0.98rem; }
+.fine { margin-top: 18px; color: var(--muted); font-size: 0.9rem; }
+
+.charge { background: var(--accent); color: var(--accent-ink); }
+.charge .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; align-items: center; }
+.charge h2 { color: var(--accent-ink); }
+.charge p { font-size: 1.15rem; opacity: 0.92; max-width: 30em; }
+
+.waitlist .wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: start; }
+form {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 24px; display: flex; flex-direction: column; gap: 16px; min-width: 0;
+}
+label { font-weight: 600; font-size: 0.95rem; display: flex; flex-direction: column; gap: 6px; }
+label .opt { font-weight: 400; color: var(--muted); }
+input, select {
+  font: 400 1rem var(--font-body); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 11px 12px; width: 100%;
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+.form-msg { font-size: 0.95rem; min-height: 1.4em; color: var(--ink); }
+
+.faq { display: flex; flex-direction: column; border-top: 1px solid var(--line); max-width: 760px; }
+details { border-bottom: 1px solid var(--line); padding: 4px 0; }
+summary {
+  cursor: pointer; list-style: none; padding: 16px 0; font-weight: 600; font-size: 1.08rem;
+  display: flex; justify-content: space-between; gap: 16px;
+}
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; font-family: var(--font-mono); color: var(--accent); font-size: 1.2rem; line-height: 1; }
+details[open] summary::after { content: "\2212"; }
+details p { color: var(--muted); padding: 0 0 18px; max-width: 40em; }
+
+footer { padding-block: 32px 48px; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+
+@media (max-width: 860px) {
+  .hero .wrap, .problem .wrap, .charge .wrap, .waitlist .wrap { grid-template-columns: 1fr; gap: 36px; }
+  .steps { grid-template-columns: 1fr; }
+  .features { grid-template-columns: 1fr 1fr; }
+  section { padding-block: 56px; }
+}
+@media (max-width: 560px) {
+  .features { grid-template-columns: 1fr; }
+  .runs li { grid-template-columns: 6.5em 1fr; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sheet { animation: rise 0.6s ease-out both; animation-delay: 0.15s; }
+  .clash { animation: rise 0.5s ease-out both; animation-delay: 0.55s; }
+  @keyframes rise { from { transform: translateY(8px); } to { transform: none; } }
+}
+</style>
 </head>
 <body>
-<main>
-  <h1>Muse</h1>
-  <p class="lead">An AI manager for independent musicians.</p>
-  <p>Muse handles the business side of a music career so artists can spend more time on the music. Tell it what you need in plain language and it takes care of:</p>
-  <ul>
-    <li><strong>Calendar:</strong> booking gigs and sessions, and catching scheduling conflicts.</li>
-    <li><strong>Email:</strong> reading booking inquiries and drafting replies for you to review and send.</li>
-    <li><strong>Invoices:</strong> creating invoices and tracking who has paid.</li>
-    <li><strong>Social posts:</strong> drafting posts that sound like you.</li>
-    <li><strong>Contacts:</strong> keeping notes on venues, promoters and collaborators.</li>
-  </ul>
-  <p>Muse is in private testing and is not open for sign-ups yet.</p>
-  <p><a class="button" href="https://app.getmusehq.com">Open Muse</a></p>
-</main>
-<footer><a href="/privacy">Privacy policy</a></footer>
+<nav>
+  <div class="wrap">
+    <a class="wordmark" href="#top">Muse<span>.</span></a>
+    <div class="navlinks">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+      <a class="btn" href="#waitlist">Join the waitlist</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <div class="hero-copy">
+      <span class="eyebrow">AI manager for independent artists</span>
+      <h1>You play the show. <em>Muse</em> handles the gig admin.</h1>
+      <p class="lede">Muse turns gig offers into calendar events, warns you about clashes before you say yes, and drafts your confirmations, promo posts and invoices. Nothing goes out until you approve it.</p>
+      <span class="status">In private testing</span>
+      <div class="hero-actions">
+        <a class="btn" href="#waitlist">Join the waitlist</a>
+        <a class="btn btn-ghost" href="https://app.getmusehq.com">Open Muse</a>
+      </div>
+    </div>
+
+    <div class="demo" aria-label="Example of Muse reading a gig offer">
+      <div class="offer">
+        <small>GIG OFFER, BY EMAIL</small>
+        Want you for Saturday the 13th at The Copper Room. Load-in at 5, set at 9. $300 plus a door split.
+      </div>
+      <div class="sheet">
+        <span class="tape">DAY SHEET</span>
+        <div class="sheet-head">
+          <h3>The Copper Room</h3>
+          <span class="date">SAT 13 · GIG <span class="chip">Tentative</span></span>
+        </div>
+        <ul class="runs">
+          <li><span class="t">5:00 PM</span><span>Load-in</span></li>
+          <li><span class="t">9:00 PM</span><span>Set</span></li>
+          <li><span class="t k">Pay</span><span>$300 + door split</span></li>
+          <li><span class="t k">Contact</span><span>Booker, from the email thread</span></li>
+        </ul>
+        <div class="clash" role="note">
+          <strong>Heads up: you teach a lesson from 3 to 5 PM that day.</strong>
+          Load-in starts the minute it ends.
+          <div class="choices" aria-label="Options Muse offers">
+            <span>Keep both</span><span>Move the lesson</span><span>Ask for a later load-in</span>
+          </div>
+        </div>
+      </div>
+      <span class="example-note">Example. The venue and details are made up.</span>
+    </div>
+  </div>
+</header>
+
+<section class="problem" aria-labelledby="problem-h">
+  <div class="wrap">
+    <div class="section-head" style="margin-bottom:0">
+      <span class="eyebrow">The problem</span>
+      <h2 id="problem-h">Being independent means being your own manager.</h2>
+    </div>
+    <div>
+      <p>Every show comes with work nobody sees. Booking emails, calendar juggling, promo posts, the invoice you meant to send and the payment you still haven't chased.</p>
+      <p>Most independent artists can't afford a manager, so all of it lands on you, usually at 1 AM after the gig.</p>
+      <ul class="chores" aria-label="Tasks Muse is built to take on" style="margin-top:22px">
+        <li>Reply to booker</li><li>Check the calendar</li><li>Post the flyer</li><li>Send invoice</li><li>Chase payment</li><li>Log the earnings</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="how" aria-labelledby="how-h">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">How it works</span>
+      <h2 id="how-h">From offer to show night in three steps.</h2>
+    </div>
+    <ol class="steps">
+      <li>
+        <h3>Send Muse the offer</h3>
+        <p>Forward the email or type it in your own words. Muse pulls out the date, venue, load-in, set time, pay and contact.</p>
+      </li>
+      <li>
+        <h3>Muse checks your calendar</h3>
+        <p>It adds the gig and tells you about any clash with a session, rehearsal or lesson, with options to fix it.</p>
+      </li>
+      <li>
+        <h3>You approve what goes out</h3>
+        <p>Confirmations, promo posts and invoices show up as drafts. Nothing is sent or posted until you say so.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="features" aria-labelledby="features-h">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">What Muse does</span>
+      <h2 id="features-h">One manager for the business side of your music.</h2>
+    </div>
+    <div class="features">
+      <div class="feature">
+        <span class="tag">Calendar</span>
+        <h3>Every gig, fully filled in</h3>
+        <p>Load-in, soundcheck, set time, pay and contact on each event, with a reminder before the show that has the address and your gear notes.</p>
+      </div>
+      <div class="feature">
+        <span class="tag">Clashes</span>
+        <h3>Catch conflicts early</h3>
+        <p>Muse spots overlaps with sessions, rehearsals and lessons before you commit, and suggests ways to make it work.</p>
+      </div>
+      <div class="feature">
+        <span class="tag">Inbox</span>
+        <h3>Booking mail, sorted</h3>
+        <p>Finds gig offers and session requests in your email, pulls out the details and drafts replies that sound like you.</p>
+      </div>
+      <div class="feature">
+        <span class="tag">Promo</span>
+        <h3>Posts in your voice</h3>
+        <p>Show announcements and thank-you posts written from how you already post, ready for you to edit and share.</p>
+      </div>
+      <div class="feature">
+        <span class="tag">Invoices</span>
+        <h3>Get paid on time</h3>
+        <p>Builds the invoice from the gig details, tracks what's paid and what's overdue, and drafts a friendly reminder.</p>
+      </div>
+      <div class="feature">
+        <span class="tag">Records</span>
+        <h3>Venues and earnings</h3>
+        <p>Keeps your venues, contacts and gig history in one place, with an earnings summary when tax time comes.</p>
+      </div>
+    </div>
+    <p class="fine">Muse is still being built, so features may change before launch.</p>
+  </div>
+</section>
+
+<section class="charge" aria-labelledby="charge-h">
+  <div class="wrap">
+    <h2 id="charge-h">Muse drafts. You decide.</h2>
+    <p>Your name is on every email and post. So Muse never sends a message, posts to your socials or sends an invoice without your OK.</p>
+  </div>
+</section>
+
+<section class="waitlist" id="waitlist" aria-labelledby="waitlist-h">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">Waitlist</span>
+      <h2 id="waitlist-h">Get on the list.</h2>
+      <p>Muse is in private testing with a few artists. Already invited? Use the Open Muse button at the top of the page.</p>
+    </div>
+    <form id="waitlist-form" novalidate>
+      <label for="wl-email">Email
+        <input id="wl-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+      </label>
+      <label for="wl-role">What best describes you? <span class="opt">Optional</span>
+        <select id="wl-role" name="role">
+          <option value="">Choose one</option>
+          <option>Solo artist</option>
+          <option>Band</option>
+          <option>Session musician</option>
+          <option>Studio owner</option>
+          <option>Engineer</option>
+          <option>DJ or producer</option>
+          <option>Something else</option>
+        </select>
+      </label>
+      <button class="btn" type="submit">Join the waitlist</button>
+      <p class="form-msg" id="wl-msg" role="status" aria-live="polite"></p>
+    </form>
+  </div>
+</section>
+
+<section id="faq" aria-labelledby="faq-h">
+  <div class="wrap">
+    <div class="section-head">
+      <span class="eyebrow">FAQ</span>
+      <h2 id="faq-h">Questions artists ask.</h2>
+    </div>
+    <div class="faq">
+      <details>
+        <summary>What is Muse?</summary>
+        <p>Muse is an AI manager for independent artists. It handles the admin around your gigs: scheduling, clashes, booking emails, promo posts and invoices.</p>
+      </details>
+      <details>
+        <summary>Who is it for?</summary>
+        <p>Independent musicians, bands and session players who book and run their own shows.</p>
+      </details>
+      <details>
+        <summary>Will Muse send or post anything without asking me?</summary>
+        <p>No. Every email, post and invoice stays a draft until you approve it.</p>
+      </details>
+      <details>
+        <summary>What will it connect to?</summary>
+        <p>Muse is being built to work with Google Calendar and Gmail, with Instagram and TikTok for promo posts.</p>
+      </details>
+      <details>
+        <summary>How much will it cost?</summary>
+        <p>Pricing isn't set yet.</p>
+      </details>
+      <details>
+        <summary>When can I use it?</summary>
+        <p>Muse is in private testing with a few artists, and there's no public launch date yet.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Muse. The AI manager for independent artists.</span>
+    <span><a href="/privacy">Privacy policy</a> · © 2026</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var form = document.getElementById("waitlist-form");
+  var email = document.getElementById("wl-email");
+  var msg = document.getElementById("wl-msg");
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var v = (email.value || "").trim();
+    if (!v || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) {
+      msg.textContent = "Enter an email address like you@example.com.";
+      email.focus();
+      return;
+    }
+    msg.textContent = "Sign-ups aren't open yet, so your email wasn't saved. Check back soon.";
+  });
+})();
+</script>
 </body>
 </html>
